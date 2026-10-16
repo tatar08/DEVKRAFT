@@ -82,7 +82,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
 - The test baseline passes with the existing tests unchanged.
 - `EnterpriseWorkspaceService.ts` is under 450 lines.
 
-### Codex — C2: Phase 4 crash drill for held locks (priority: medium, after C1)
+### Codex — C2: Phase 4 crash drill for held locks — ✅ done by Codex, reviewed and merged
 
 **Files you may edit:** `apps/server/src/enterprise/EnterprisePublicationService.ts`, plus new test files under `apps/server/src/enterprise/`.
 
