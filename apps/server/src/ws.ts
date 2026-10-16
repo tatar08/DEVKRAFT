@@ -1,6 +1,11 @@
 import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
 import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
-import { ENTERPRISE_WS_METHODS, EnterpriseRoleError } from "@t3tools/contracts";
+import {
+  ENTERPRISE_WS_METHODS,
+  EnterprisePublicationError,
+  EnterpriseRoleError,
+} from "@t3tools/contracts";
+import { EnterpriseTenancy, withEnterpriseTenant } from "./enterprise/EnterpriseTenancy.ts";
 import * as EnterpriseAutomation from "./enterprise/EnterpriseWorkflowAutomation.ts";
 import * as EnterpriseWorkflows from "./enterprise/EnterpriseWorkflowService.ts";
 import * as EnterpriseRoles from "./enterprise/EnterpriseRoleService.ts";
@@ -1237,6 +1242,8 @@ const layerCoreWsRpc = (
         }
       };
       const enterprisePublication = yield* EnterprisePublication.EnterprisePublicationService;
+      const enterpriseTenant = withEnterpriseTenant(yield* EnterpriseTenancy);
+      const roleTenantRejected = () => new EnterpriseRoleError({ reason: "tenant_not_allowed" });
       const enterpriseWorkflows = yield* EnterpriseWorkflows.EnterpriseWorkflowService;
       const enterpriseRoles = yield* EnterpriseRoles.EnterpriseRoleService;
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
@@ -1967,27 +1974,41 @@ const layerCoreWsRpc = (
                 ),
             ),
           ),
-        [ENTERPRISE_WS_METHODS.publishPullRequest]: (input) => enterprisePublication.publish(input),
+        // Tenant first: a rejected payload performs no Enterprise work (see EnterpriseTenancy).
+        [ENTERPRISE_WS_METHODS.publishPullRequest]: (input) =>
+          enterpriseTenant(
+            input,
+            () => new EnterprisePublicationError({ reason: "tenant_not_allowed" }),
+            enterprisePublication.publish(input),
+          ),
         [ENTERPRISE_WS_METHODS.collectRoleArtifact]: (input) =>
-          enterpriseRoles.collectRoleArtifact(input),
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.collectRoleArtifact(input)),
         [ENTERPRISE_WS_METHODS.buildPullRequestDraft]: (input) =>
-          enterpriseRoles.buildPullRequestDraft(input),
-        [ENTERPRISE_WS_METHODS.advanceWorkflow]: (input) => enterpriseWorkflows.advance(input),
-        [ENTERPRISE_WS_METHODS.gateAndContinue]: (input) => enterpriseRoles.gateAndContinue(input),
-        [ENTERPRISE_WS_METHODS.gateRole]: (input) => enterpriseRoles.gateRole(input),
-        [ENTERPRISE_WS_METHODS.collectHandoff]: (input) => enterpriseRoles.collectHandoff(input),
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.buildPullRequestDraft(input)),
+        [ENTERPRISE_WS_METHODS.advanceWorkflow]: (input) =>
+          enterpriseTenant(input, roleTenantRejected, enterpriseWorkflows.advance(input)),
+        [ENTERPRISE_WS_METHODS.gateAndContinue]: (input) =>
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.gateAndContinue(input)),
+        [ENTERPRISE_WS_METHODS.gateRole]: (input) =>
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.gateRole(input)),
+        [ENTERPRISE_WS_METHODS.collectHandoff]: (input) =>
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.collectHandoff(input)),
         [ENTERPRISE_WS_METHODS.releaseWorkspace]: (input) =>
-          enterpriseRoles.releaseWorkspace(input),
+          enterpriseTenant(input, roleTenantRejected, enterpriseRoles.releaseWorkspace(input)),
         [ENTERPRISE_WS_METHODS.launchRole]: (input) =>
-          startup
-            .enqueueCommand(enterpriseRoles.launch(input))
-            .pipe(
-              Effect.mapError((cause) =>
-                cause._tag === "EnterpriseRoleError"
-                  ? cause
-                  : new EnterpriseRoleError({ reason: "launch_failed", cause }),
+          enterpriseTenant(
+            input,
+            roleTenantRejected,
+            startup
+              .enqueueCommand(enterpriseRoles.launch(input))
+              .pipe(
+                Effect.mapError((cause) =>
+                  cause._tag === "EnterpriseRoleError"
+                    ? cause
+                    : new EnterpriseRoleError({ reason: "launch_failed", cause }),
+                ),
               ),
-            ),
+          ),
         [ORCHESTRATION_V2_WS_METHODS.launchThread]: (input) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": input.commandId,
@@ -3194,36 +3215,66 @@ const layerWsRpc = (
     ServerWsRpcGroup.toLayerHandler(
       ENTERPRISE_WS_METHODS.startIssueWorkflow,
       Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
         const service = yield* EnterpriseIssueWorkflows.EnterpriseIssueWorkflowService;
-        return (input) => service.start(input, currentSession.sessionId);
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
+            service.start(input, currentSession.sessionId),
+          );
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
       ENTERPRISE_WS_METHODS.startWorkflow,
       Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
-        return (input) => automation.start(input, currentSession.sessionId);
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
+            automation.start(input, currentSession.sessionId),
+          );
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
       ENTERPRISE_WS_METHODS.cancelWorkflow,
       Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
-        return (input) => automation.cancel(input, currentSession.sessionId);
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
+            automation.cancel(input, currentSession.sessionId),
+          );
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
       ENTERPRISE_WS_METHODS.stopWorkflow,
       Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
-        return (input) => automation.stop(input);
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
+            automation.stop(input),
+          );
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
       ENTERPRISE_WS_METHODS.getWorkflowAutomation,
       Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
-        return (input) => automation.status(input);
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
+            automation.status(input),
+          );
       }),
     ),
   );

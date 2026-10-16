@@ -2,7 +2,7 @@
 
 > **สรุป:** ไฟล์นี้คือคำสั่งงานสำหรับ Codex และ Gemini ภายใต้การควบคุมของ Claude (supervisor). ทำเฉพาะงานที่ได้รับมอบหมาย ในไฟล์ที่ระบุ บน branch ของตัวเอง แล้วส่งรายงานตามแบบฟอร์มด้านล่าง ห้าม merge เอง
 
-- **Base branch:** `enterprise/mvp` (state as of commit `7bd1a47ef0`, 17 October 2026)
+- **Base branch:** `enterprise/mvp` (rebase onto its latest head before starting; tenant boundary landed 17 October 2026)
 - **Spec:** [`docs/T3_Code_Enterprise_Blueprint_v3_MVP.md`](../T3_Code_Enterprise_Blueprint_v3_MVP.md), in particular the _Core Clean Code & Organization Mandate_ and [the supervised review record](../T3_Code_Enterprise_Blueprint_v3_MVP.md#supervised-review-2026-10-17)
 - **Repository rules:** [`AGENTS.md`](../../AGENTS.md) applies in full (Effect idioms, verifying rules, no repo-wide checks)
 
@@ -21,7 +21,7 @@ The baseline commit `c9d456ad42` is the previously uncommitted Codex/Gemini work
 | 7   | `.t3-data/` (1.9 GB user data) sat untracked in the repo.                                                                                                                          | Fixed: added to `.gitignore`                                                |
 | 8   | God functions: `EnterpriseWorkspaceService.mutate` (~600 lines) and `EnterpriseRoleService` (~880 lines).                                                                          | **Open → tasks C1 and G1**                                                  |
 | 9   | Implementation-level JSDoc and rationale comments are missing. Public interfaces now have JSDoc.                                                                                   | **Open → part of C1/G1**                                                    |
-| 10  | `tenantId` is not an authorization boundary.                                                                                                                                       | **Open → needs a user decision; do not start**                              |
+| 10  | `tenantId` was not an authorization boundary.                                                                                                                                      | Fixed: ADR-003 environment-level allowlist (`EnterpriseTenancy`)            |
 
 Checked and found not to be a problem: Node runs inside the real sandbox under `prlimit --as=2GiB`. Probing `codex` from PATH is correct, because `isDefaultEnterpriseCodexConfig` requires `binaryPath === "codex"`.
 
@@ -51,7 +51,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
    ```bash
    npx vp lint <changed files>
    ```
-   The baseline is **570 passed, 5 skipped, 0 failed**. Lint warnings that already exist upstream (unused `Fiber`/`Schedule` in `ws.ts`, the empty import in `rpc.ts`) are not yours.
+   The baseline is **579 passed, 5 skipped, 0 failed**. Lint warnings that already exist upstream (unused `Fiber`/`Schedule` in `ws.ts`, the empty import in `rpc.ts`) are not yours.
 7. **Commits.** Use conventional commits (`refactor(enterprise): …`). Make small commits, each of which passes the tests. Do not push and do not open PRs; the supervisor merges.
 8. **When blocked or rate-limited**, commit your work in progress with `wip:` in the subject, fill in the report, and stop. Do not leave uncommitted changes behind.
 
@@ -70,7 +70,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
 **Do:**
 
 1. Move the artifact and record schemas plus their encoders/decoders (file lines 27–111: Ownership, Check/Snapshot/Failure artifacts, automation record) to `EnterpriseWorkspaceArtifacts.ts`.
-2. Extract one shared helper, `withOwnership(input, (ctx) => …)`. It owns the resolve, validate-manifest and acquire/release-operation-lock sequence that every operation repeats today.
+2. Extract one shared helper, `withOwnership(input, (ctx) => …)`. Its **first** step must stay `tenancy.authorize(spec.tenantId)`, before any filesystem effect, and the tests "refuses an unlisted tenant…" and "keeps tenants … separate" must keep passing. It owns the resolve, validate-manifest and acquire/release-operation-lock sequence that every operation repeats today.
 3. Give each operation its own named function: `prepare`, `cleanup`, `runCheck(s)`, `gateSnapshot`, `readAutomation`, `writeAutomation`, `bindWorkflow`, `bindThread`, `releaseBindings`. Each takes typed input, not a union. Then delete `mutate` and `invoke`.
 4. Write a JSDoc rationale for every non-obvious guard: why ignored files block cleanup, why there is no age-based lock reclaim, why the `.codex`/`.agents` directories are created.
 
@@ -121,13 +121,13 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 
 **Files you may edit:** `apps/server/src/enterprise/EnterpriseWorkflowAutomation.ts`, plus new tests.
 
-**Problem:** `seen = new Map<string, string>()` grows forever, with one entry per task ever registered.
+**Problem (corrected by supervisor review):** `sweep` already removes `seen` entries whose Architect thread left the active shell. The only leftover is a stopped workflow whose threads stay active. This task is low value; do it only after G1 is accepted.
 
 **Do:** delete an entry when a workflow stops (ready, blocked, error or cancelled) or is no longer registered. Add a focused test that the map does not keep stopped tasks. Behavior must not change otherwise.
 
 ### Not assigned: needs a decision from the user first
 
-- **Tenant-scoped authorization (P0 risk).** Decide whether the MVP stays single-tenant (document it as a non-goal) or whether every RPC and artifact gets checked against the tenant.
+- **Per-session tenant binding.** The environment-level boundary (ADR-003) is in place. Binding tenants to authenticated users needs a pairing-level claim and a design review.
 - **Live remote acceptance (Phase 2).** The user deferred creating a real GitHub repository or PR on 17 October 2026.
 - **Approval persistence (Phase 4/5).** This needs a design review before any code.
 

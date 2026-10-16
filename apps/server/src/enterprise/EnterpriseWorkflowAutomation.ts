@@ -29,6 +29,7 @@ import {
   normalizeEnterpriseWorkflow,
 } from "./EnterpriseWorkflowConfiguration.ts";
 import { enterpriseSecretKinds } from "./EnterpriseSecretPolicy.ts";
+import { EnterpriseTenancy } from "./EnterpriseTenancy.ts";
 
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
 const decodeScope = Schema.decodeUnknownEffect(EnterpriseReleaseWorkspaceInput);
@@ -87,6 +88,7 @@ const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const crypto = yield* Crypto.Crypto;
   const path = yield* Path.Path;
+  const tenancy = yield* EnterpriseTenancy;
   const permit = yield* Semaphore.make(1);
   const seen = new Map<string, string>();
   const authorize = Effect.fn("EnterpriseWorkflowAutomation.authorize")(function* (
@@ -102,6 +104,18 @@ const make = Effect.gen(function* () {
     )
       return yield* new EnterpriseRoleError({ reason: "authorization_required" });
   });
+  /**
+   * Background steps run without a client, so both the owner session and the task's tenant are
+   * re-checked on every tick: revoking either stops the workflow at its next step.
+   */
+  const authorizeRecord = (record: EnterpriseWorkflowAutomationRecord) =>
+    authorize(record.ownerSessionId).pipe(
+      Effect.andThen(
+        tenancy
+          .authorize(record.input.task.tenantId)
+          .pipe(Effect.mapError(() => new EnterpriseRoleError({ reason: "tenant_not_allowed" }))),
+      ),
+    );
   const start = Effect.fn("EnterpriseWorkflowAutomation.start")(function* (
     raw: EnterpriseAdvanceWorkflowInput,
     sessionId: AuthSessionId,
@@ -257,7 +271,7 @@ const make = Effect.gen(function* () {
         if (seen.get(key) === fingerprint) return;
         if (record.stopReason === "cancelled") {
           // Leave intent intact on dispatch failure so the next scheduler tick can retry.
-          const authorized = yield* authorize(record.ownerSessionId).pipe(Effect.result);
+          const authorized = yield* authorizeRecord(record).pipe(Effect.result);
           if (authorized._tag === "Failure") {
             yield* workspace.writeAutomation({
               ...params(record.input),
@@ -269,7 +283,7 @@ const make = Effect.gen(function* () {
           seen.set(key, fingerprint);
           return;
         }
-        const outcome = yield* authorize(record.ownerSessionId).pipe(
+        const outcome = yield* authorizeRecord(record).pipe(
           Effect.andThen(workflow.advance(record.input)),
           Effect.result,
         );
@@ -284,7 +298,8 @@ const make = Effect.gen(function* () {
           )
             return;
           const reason =
-            cause._tag === "EnterpriseRoleError" && cause.reason === "authorization_required"
+            cause._tag === "EnterpriseRoleError" &&
+            (cause.reason === "authorization_required" || cause.reason === "tenant_not_allowed")
               ? ("authorization_required" as const)
               : ("error" as const);
           yield* workspace.writeAutomation({

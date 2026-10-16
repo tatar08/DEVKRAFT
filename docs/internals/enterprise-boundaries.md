@@ -93,3 +93,27 @@ Issue-start and draft publication are explicit authenticated operations. Publica
 filesystem receipt tracks one external side-effect intent, not task/run progress. An ambiguous
 remote create is reconciled, never blindly retried; stale locks require operator recovery.
 It publishes a pinned checkpoint to a new deterministic remote branch and never merges it.
+
+## ADR-003: Environment-level tenant boundary
+
+**Decision.** An environment serves only the tenants its operator lists in `<T3 home>/userdata/enterprise-tenants.json`:
+
+```json
+{ "version": 1, "tenants": ["acme", "globex"] }
+```
+
+- **No file:** the environment serves only the default tenant `local`.
+- **Listing tenants replaces the default.** Add `local` to the list to keep it.
+- **Unreadable, invalid or oversized (over 64 KiB) file:** no tenant is served (fail closed).
+- **Re-read on every check.** Removing a tenant takes effect at the next RPC or background step, without a restart.
+
+**Enforcement points.** All three call [`EnterpriseTenancy`](../../apps/server/src/enterprise/EnterpriseTenancy.ts):
+
+1. **Every Enterprise RPC** (`ws.ts`) is checked before any work starts, including the GitHub issue fetch, and returns `tenant_not_allowed`.
+2. **Every workspace operation** (`EnterpriseWorkspaceService`) is checked before any filesystem effect. This covers CLI, RPC and worker paths alike. Task state is keyed by `sha256(tenantId, projectId, taskId)`, so two tenants with the same task ID never share a workspace, manifest or artifact.
+3. **Background automation** re-checks the tenant together with the owner session on each tick. A revoked tenant stops the worker with `authorization_required`.
+
+**Not covered (follow-up).** This boundary separates tenants on one host. It does not separate users who share an environment.
+
+- Binding a tenant to an authenticated session needs a tenant claim issued at pairing time.
+- The local CLI has no server config, so it always uses the default (`local` only).

@@ -14,6 +14,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Git from "../vcs/GitVcsDriver.ts";
 import { enterpriseWorkflowKey } from "./EnterpriseWorkflowConfiguration.ts";
+import * as Tenancy from "./EnterpriseTenancy.ts";
 import * as Workspace from "./EnterpriseWorkspaceService.ts";
 
 const decodeAutomationInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
@@ -65,6 +66,39 @@ const provide = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.scoped, Effect.provide(testLayer));
 
 describe("EnterpriseWorkspaceService", () => {
+  it.effect("refuses an unlisted tenant before creating any task state", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup;
+        const foreign = yield* decodeSpec({ ...env.spec, tenantId: "acme" });
+        const rejected = yield* env.service.prepare({ ...env, spec: foreign }).pipe(Effect.flip);
+        assert.equal(rejected._tag, "EnterpriseWorkspaceRejected");
+        if (rejected._tag === "EnterpriseWorkspaceRejected")
+          assert.equal(rejected.reason, "tenant_not_allowed");
+        assert.isFalse(yield* env.fs.exists(env.workspacesRoot));
+      }),
+    ),
+  );
+  it.effect("keeps tenants that share a task ID in separate workspaces", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup;
+        const acme = yield* decodeSpec({ ...env.spec, tenantId: "acme" });
+        const tenancy = Layer.succeed(Tenancy.EnterpriseTenancy, {
+          authorize: () => Effect.void,
+        });
+        const both = yield* Workspace.EnterpriseWorkspaceService.pipe(
+          Effect.flatMap((service) =>
+            Effect.all([service.prepare(env), service.prepare({ ...env, spec: acme })]),
+          ),
+          Effect.provide(Layer.fresh(Workspace.layer).pipe(Layer.provide(tenancy))),
+        );
+        assert.notEqual(both[0].worktreePath, both[1].worktreePath);
+        assert.notEqual(both[0].branch, both[1].branch);
+        assert.equal(both[1].spec.tenantId, "acme");
+      }),
+    ),
+  );
   it.effect(
     "creates a pinned worktree and reuses persisted ownership across service instances",
     () =>

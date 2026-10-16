@@ -29,6 +29,7 @@ import * as Threads from "../orchestration-v2/ThreadManagementService.ts";
 import * as Launch from "../orchestration-v2/ThreadLaunchService.ts";
 import * as Git from "../vcs/GitVcsDriver.ts";
 import * as Sandbox from "./EnterpriseSandboxService.ts";
+import * as Tenancy from "./EnterpriseTenancy.ts";
 import * as Workspace from "./EnterpriseWorkspaceService.ts";
 import * as Automation from "./EnterpriseWorkflowAutomation.ts";
 import * as AuthSessions from "../persistence/AuthSessions.ts";
@@ -64,6 +65,7 @@ const scenario = (options: {
     | "cancel_foreign"
     | "stop"
     | "revoked"
+    | "tenant_revoked"
     | "expired"
     | "scopes"
     | "unauthorized_start"
@@ -525,9 +527,17 @@ const scenario = (options: {
                     } as unknown as AuthSessions.AuthSessionRecord);
                   }),
               });
+              let tenantRevoked = false;
+              const tenancyLayer = Layer.succeed(Tenancy.EnterpriseTenancy, {
+                authorize: (tenantId) =>
+                  tenantRevoked
+                    ? Effect.fail(new Tenancy.EnterpriseTenantRejected({ tenantId }))
+                    : Effect.void,
+              });
               const autoLayer = Automation.layer.pipe(
                 Layer.provide(
                   Layer.mergeAll(
+                    tenancyLayer,
                     Layer.succeed(Workflows.EnterpriseWorkflowService, observed),
                     Workspace.layer,
                     Layer.succeed(Threads.ThreadManagementService, threads),
@@ -817,8 +827,13 @@ const scenario = (options: {
                 assert.deepEqual(yield* auto.status(request), stopped);
                 return first;
               }
-              if (auto && ["revoked", "expired", "scopes"].includes(options.automation!)) {
-                authMode = options.automation as "revoked" | "expired" | "scopes";
+              if (
+                auto &&
+                ["revoked", "expired", "scopes", "tenant_revoked"].includes(options.automation!)
+              ) {
+                // Operator removed the tenant from the allowlist while the workflow was running.
+                if (options.automation === "tenant_revoked") tenantRevoked = true;
+                else authMode = options.automation as "revoked" | "expired" | "scopes";
                 yield* auto.sweep;
                 const stopped = yield* auto.status(request);
                 assert.isFalse(stopped.enabled);
@@ -2002,13 +2017,20 @@ it.effect("refuses workflow execution without required task grants before launch
   }),
 );
 
-it.effect.each(["normal", "restart", "scheduler", "stop", "revoked", "expired", "scopes"] as const)(
-  "runs persisted automation with live authorization (%s)",
-  (automation) =>
-    Effect.gen(function* () {
-      const env = yield* scenario({ workflow: "happy", gate: "passed", automation });
-      assert.equal(env.result._tag, "Success");
-    }),
+it.effect.each([
+  "normal",
+  "restart",
+  "scheduler",
+  "stop",
+  "revoked",
+  "expired",
+  "scopes",
+  "tenant_revoked",
+] as const)("runs persisted automation with live authorization (%s)", (automation) =>
+  Effect.gen(function* () {
+    const env = yield* scenario({ workflow: "happy", gate: "passed", automation });
+    assert.equal(env.result._tag, "Success");
+  }),
 );
 it.effect.each(["qa_fix", "gate_fix", "exhausted"] as const)(
   "background automation preserves correction boundaries (%s)",

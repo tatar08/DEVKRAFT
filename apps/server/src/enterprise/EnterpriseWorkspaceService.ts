@@ -22,6 +22,7 @@ import * as ProcessRunner from "../processRunner.ts";
 import { enterpriseTaskKey, enterpriseWorkflowKey } from "./EnterpriseWorkflowConfiguration.ts";
 import { enterpriseSecretKinds, redactEnterpriseSecrets } from "./EnterpriseSecretPolicy.ts";
 import * as Secrets from "./EnterpriseSecretService.ts";
+import { EnterpriseTenancy } from "./EnterpriseTenancy.ts";
 import * as Sandbox from "./EnterpriseSandboxService.ts";
 
 const encodeAutomation = Schema.encodeEffect(
@@ -127,6 +128,7 @@ export class EnterpriseWorkspaceRejected extends Schema.TaggedError<EnterpriseWo
       "check_failed",
       "check_timed_out",
       "tool_not_allowed",
+      "tenant_not_allowed",
     ]),
   },
 ) {
@@ -290,6 +292,7 @@ const make = Effect.gen(function* () {
   const git = yield* Git.GitVcsDriver;
   const sandbox = yield* Sandbox.EnterpriseSandboxService;
   const secrets = yield* Secrets.EnterpriseSecretService;
+  const tenancy = yield* EnterpriseTenancy;
   const runGit = (cwd: string, args: ReadonlyArray<string>) =>
     git.execute({
       operation: "EnterpriseWorkspaceService.git",
@@ -354,6 +357,12 @@ const make = Effect.gen(function* () {
           readonly artifactId: string;
         },
   ) {
+    // Checked before any filesystem effect: an unlisted tenant cannot create or read task state.
+    yield* tenancy
+      .authorize(input.spec.tenantId)
+      .pipe(
+        Effect.mapError(() => new EnterpriseWorkspaceRejected({ reason: "tenant_not_allowed" })),
+      );
     const repositoryRoot = yield* fs.realPath(input.repositoryRoot);
     yield* fs.makeDirectory(input.workspacesRoot, { recursive: true });
     const root = yield* fs.realPath(input.workspacesRoot);

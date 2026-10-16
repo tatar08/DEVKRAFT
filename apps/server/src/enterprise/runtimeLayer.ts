@@ -11,6 +11,7 @@ import * as Pricing from "./EnterprisePricing.ts";
 import * as Publication from "./EnterprisePublicationService.ts";
 import * as Roles from "./EnterpriseRoleService.ts";
 import * as RuntimePolicy from "./EnterpriseRuntimePolicy.ts";
+import * as Tenancy from "./EnterpriseTenancy.ts";
 import * as Automation from "./EnterpriseWorkflowAutomation.ts";
 import * as Workflows from "./EnterpriseWorkflowService.ts";
 import * as Workspace from "./EnterpriseWorkspaceService.ts";
@@ -19,7 +20,7 @@ import * as Workspace from "./EnterpriseWorkspaceService.ts";
 export const layerRuntimePolicy = RuntimePolicy.layer.pipe(Layer.provide(ProcessRunner.layer));
 
 /**
- * All Enterprise services plus the background automation worker. The composition root passes in
+ * All Enterprise services plus the background automation worker, sharing one tenant allowlist. The composition root passes in
  * the core V2 layers Enterprise depends on, so wiring stays in this module.
  */
 export const layer = <E1, R1, E2, R2>(deps: {
@@ -83,5 +84,6 @@ export const layer = <E1, R1, E2, R2>(deps: {
     Automation.layerWorker.pipe(Layer.provide(layerAutomationProvided)),
     layerWorkflowsProvided,
     layerRolesProvided,
-  );
+    // Merged into the output so ws.ts handlers check tenants with the same operator allowlist.
+  ).pipe(Layer.provideMerge(Tenancy.layer));
 };
