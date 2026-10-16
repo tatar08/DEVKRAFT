@@ -53,6 +53,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
    ```
    The baseline is **579 passed, 5 skipped, 0 failed**. Lint warnings that already exist upstream (unused `Fiber`/`Schedule` in `ws.ts`, the empty import in `rpc.ts`) are not yours.
 7. **Commits.** Use conventional commits (`refactor(enterprise): …`). Make small commits, each of which passes the tests. Do not push and do not open PRs; the supervisor merges.
+   - **Sandboxed agents (Codex `workspace-write`):** the repository `.git` metadata is read-only. Do not rebase or commit; the supervisor prepares the worktree and commits your reviewed changes. Leave your changes uncommitted in the worktree.
 8. **When blocked or rate-limited**, commit your work in progress with `wip:` in the subject, fill in the report, and stop. Do not leave uncommitted changes behind.
 
 ## 3. Assignments
