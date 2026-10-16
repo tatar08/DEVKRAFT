@@ -53,6 +53,14 @@ export class EnterprisePublicationService extends Context.Service<
     /**
      * Publishes the workflow's verified checkpoint as a draft PR on a deterministic branch.
      * Never advances the workflow, merges or approves; retries reconcile against GitHub first.
+     *
+     * After a process crash, a held `publication.lock` remains busy regardless of age. To recover,
+     * first stop/confirm the publishing process is no longer running and inspect GitHub for the
+     * receipt's repository and head branch. Remove only the task control directory's
+     * `publication.lock`, preserving `publication.json`, then retry the identical publish request.
+     * The receipt prevents another create: retry returns the matching PR or `publication_unknown`.
+     * If unknown, investigate GitHub/gh and retry reconciliation; do not delete the receipt to
+     * force creation, since the original request may already have created a PR.
      */
     readonly publish: (
       input: EnterprisePublishPullRequestInput,
