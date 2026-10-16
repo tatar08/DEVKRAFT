@@ -96,27 +96,35 @@ const encodeContext = Schema.encodeEffect(
 export class EnterpriseRoleService extends Context.Service<
   EnterpriseRoleService,
   {
+    /** Dispatches a bounded provider retry (at most two) for a failed role run on another model of the same backend. */
     readonly retry: (
       input: EnterpriseLaunchRoleInput,
     ) => Effect.Effect<{ readonly threadId: ThreadId }, EnterpriseRoleError>;
+    /** Gates the Coder checkpoint; on a recoverable check failure persists it and starts the next correction round. */
     readonly gateAndContinue: (
       input: EnterpriseGateAndContinueInput,
     ) => Effect.Effect<EnterpriseGateAndContinueResult, EnterpriseRoleError>;
+    /** Returns the validated structured Architect spec or QA report from the persisted final V2 message. */
     readonly collectRoleArtifact: (
       input: EnterpriseCollectRoleArtifactInput,
     ) => Effect.Effect<EnterpriseRoleArtifact, EnterpriseRoleError>;
+    /** Builds Proof-of-Work evidence and Markdown from a verified gate artifact. Never authorizes publish or merge. */
     readonly buildPullRequestDraft: (
       input: EnterpriseBuildPullRequestDraftInput,
     ) => Effect.Effect<EnterprisePullRequestDraft, EnterpriseRoleError>;
+    /** Runs the deterministic gate on the completed Coder checkpoint resolved by the server, not the client. */
     readonly gateRole: (
       input: EnterpriseGateRoleInput,
     ) => Effect.Effect<EnterpriseSnapshotGateResult, EnterpriseRoleError>;
+    /** Resolves the AgentHandoff for a completed role run from its ready V2 checkpoint. */
     readonly collectHandoff: (
       input: EnterpriseCollectHandoffInput,
     ) => Effect.Effect<AgentHandoff, EnterpriseRoleError>;
+    /** Retires the task once every bound V2 thread is deleted, terminal and stopped. */
     readonly releaseWorkspace: (
       input: EnterpriseReleaseWorkspaceInput,
     ) => Effect.Effect<void, EnterpriseRoleError>;
+    /** Launches (or idempotently resumes) a role thread with stable V2 command/message identity. */
     readonly launch: (
       input: EnterpriseLaunchRoleInput,
     ) => Effect.Effect<

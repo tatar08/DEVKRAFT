@@ -145,6 +145,7 @@ export class EnterpriseWorkspaceError extends Schema.TaggedError<EnterpriseWorks
 export class EnterpriseWorkspaceService extends Context.Service<
   EnterpriseWorkspaceService,
   {
+    /** Reads the persisted gate-failure record for this handoff and plan; validates task/run/commit/plan before use. */
     readonly readSnapshotFailure: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -155,6 +156,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       EnterpriseSnapshotGateFailure | undefined,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Reads a passing `gate-*.json` artifact and checks it still matches the task, V2 handoff and checkpoint commit. */
     readonly readSnapshotGate: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -165,6 +167,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       EnterpriseSnapshotGateResult,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Runs the check plan on a detached snapshot of the handoff commit under the ownership lock; never touches the agent checkout. */
     readonly gateSnapshot: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -175,6 +178,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       EnterpriseSnapshotGateResult,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Creates or reuses the owned task worktree. Retries reuse the immutable manifest and never adopt an orphan checkout. */
     readonly prepare: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -183,6 +187,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Removes a clean, unbound task worktree. Refuses held locks, dirty/ignored files and new commits; never force-removes. */
     readonly cleanup: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -191,6 +196,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Retires V2 thread bindings once those threads are deleted, terminal and their sessions stopped. */
     readonly releaseBindings: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -200,6 +206,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Reads `workflow-automation.json` beside the ownership manifest (size, symlink and identity checked). */
     readonly readAutomation: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -208,18 +215,21 @@ export class EnterpriseWorkspaceService extends Context.Service<
       EnterpriseWorkflowAutomationRecord | undefined,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** Atomically persists the automation record under the operation lock. */
     readonly writeAutomation: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
       readonly workspacesRoot: string;
       readonly record: EnterpriseWorkflowAutomationRecord;
     }) => Effect.Effect<void, EnterpriseWorkspaceRejected | EnterpriseWorkspaceError>;
+    /** Binds the workflow configuration digest; a later call with a different digest is rejected. */
     readonly bindWorkflow: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
       readonly workspacesRoot: string;
       readonly key: string;
     }) => Effect.Effect<void, EnterpriseWorkspaceRejected | EnterpriseWorkspaceError>;
+    /** Records a V2 role thread binding before launch so cleanup stays closed if launch outcome is unknown. */
     readonly bindThread: (input: {
       readonly spec: TaskSpec;
       readonly repositoryRoot: string;
@@ -229,6 +239,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** CLI entry: `prepare` with a TaskSpec read from disk. */
     readonly prepareFile: (input: {
       readonly specPath: string;
       readonly repositoryRoot: string;
@@ -237,6 +248,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** CLI entry: `cleanup` with a TaskSpec read from disk. */
     readonly cleanupFile: (input: {
       readonly specPath: string;
       readonly repositoryRoot: string;
@@ -245,6 +257,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** CLI entry: runs a four-check gate plan read from disk against the task checkout. */
     readonly gateFile: (input: {
       readonly specPath: string;
       readonly planPath: string;
@@ -254,6 +267,7 @@ export class EnterpriseWorkspaceService extends Context.Service<
       typeof Ownership.Type,
       EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
     >;
+    /** CLI entry: runs one sandboxed check read from disk against the task checkout. */
     readonly checkFile: (input: {
       readonly specPath: string;
       readonly checkPath: string;

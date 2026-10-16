@@ -54,21 +54,27 @@ const params = (input: EnterpriseAdvanceWorkflowInput | EnterpriseReleaseWorkspa
 export class EnterpriseWorkflowAutomation extends Context.Service<
   EnterpriseWorkflowAutomation,
   {
+    /** Re-checks the owner session (not revoked, not expired, all three scopes) before any background step. */
     readonly authorize: (sessionId: AuthSessionId) => Effect.Effect<void, EnterpriseRoleError>;
+    /** Registers opt-in background automation for the caller's session and advances the first stage. */
     readonly start: (
       input: EnterpriseAdvanceWorkflowInput,
       sessionId: AuthSessionId,
     ) => Effect.Effect<EnterpriseStartWorkflowResult, EnterpriseRoleError>;
+    /** Persists cancellation intent, then sends V2 `thread.stop` to every bound role thread. Retries partial dispatch. */
     readonly cancel: (
       input: EnterpriseReleaseWorkspaceInput,
       sessionId: AuthSessionId,
     ) => Effect.Effect<EnterpriseCancelWorkflowResult, EnterpriseRoleError>;
+    /** Disables further automatic steps after any in-flight advance finishes; does not interrupt provider turns. */
     readonly stop: (
       input: EnterpriseReleaseWorkspaceInput,
     ) => Effect.Effect<EnterpriseWorkflowAutomationStatus, EnterpriseRoleError>;
+    /** Reports whether automation is registered, enabled and why it stopped. */
     readonly status: (
       input: EnterpriseReleaseWorkspaceInput,
     ) => Effect.Effect<EnterpriseWorkflowAutomationStatus, EnterpriseRoleError>;
+    /** One scheduler tick: advances registered workflows whose V2 event sequences changed. */
     readonly sweep: Effect.Effect<void, EnterpriseRoleError>;
   }
 >()("t3/enterprise/EnterpriseWorkflowAutomation") {}
