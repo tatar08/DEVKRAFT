@@ -1,7 +1,13 @@
-import { ENTERPRISE_CODEX_STARTUP_ARGS } from "../../enterprise/EnterpriseCodexSupport.ts";
 import { revertCodexThread } from "../../provider/CodexThreadRevert.ts";
 import { historyResponseItems } from "@t3tools/provider-core/server/handoffBudget";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
+import {
+  CODEX_LOCAL_MODEL_PROVIDER,
+  CODEX_LOCAL_MODEL_PROVIDER_CONFIG,
+  CODEX_NAMED_PROFILE_STARTUP_ARGS,
+  codexNativeModel,
+  isCodexLocalModel,
+} from "./CodexNamedProfile.ts";
 import {
   mcpToolPresentation,
   type McpToolPresentation,
@@ -717,11 +723,12 @@ export function buildCodexTurnStartParams(input: {
   readonly appContext?: ProviderAdapter.ProviderAdapterV2TurnInput["appContext"];
 }) {
   return Effect.gen(function* () {
+    // Local models are only honoured under a named profile; elsewhere the ID passes through.
     const localModel =
       input.runtimePolicy.filesystemAccess !== undefined &&
-      input.modelSelection.model.startsWith("ollama/");
+      isCodexLocalModel(input.modelSelection.model);
     const nativeModel = localModel
-      ? input.modelSelection.model.slice(7)
+      ? codexNativeModel(input.modelSelection.model)
       : input.modelSelection.model;
     const runtimeModeDefaults = codexRuntimeModeTurnDefaults(input.runtimePolicy.runtimeMode);
     const approvalPolicy =
@@ -1104,6 +1111,14 @@ function parseCodexRetryProgress(
   return { attempt, maxAttempts };
 }
 
+/** Codes produced by `codexErrorInfoCode(_, true)` for transient upstream HTTP failures. */
+const isRetryableHttpCode = (code: string | null | undefined) =>
+  code === "http_429" || code === "http_503" || code === "http_529";
+
+/**
+ * Normalizes Codex `codexErrorInfo` to a failure code. With `preserveHttpStatus` (named-profile
+ * threads), transient HTTP statuses become `http_<status>` so workflow routing can apply cooldowns.
+ */
 export function codexErrorInfoCode(value: unknown, preserveHttpStatus = false): string | null {
   if (typeof value === "string") {
     return value;
@@ -1333,7 +1348,8 @@ export function codexThreadRuntimeParams(input: {
 } {
   const localModel =
     input.runtimePolicy?.filesystemAccess !== undefined &&
-    input.modelSelection?.model.startsWith("ollama/") === true;
+    input.modelSelection !== undefined &&
+    isCodexLocalModel(input.modelSelection.model);
   const mcpSession = input.runtimePolicy?.disableT3Mcp ? undefined : input.mcpSession;
   const disabledMcpConfig: Readonly<Record<string, Schema.Json>> = input.runtimePolicy?.disableT3Mcp
     ? {
@@ -1382,23 +1398,17 @@ export function codexThreadRuntimeParams(input: {
     ...(input.modelSelection === undefined
       ? {}
       : {
-          model: localModel ? input.modelSelection.model.slice(7) : input.modelSelection.model,
+          model: localModel
+            ? codexNativeModel(input.modelSelection.model)
+            : input.modelSelection.model,
         }),
-    ...(localModel ? { modelProvider: "t3-ollama" } : {}),
+    ...(localModel ? { modelProvider: CODEX_LOCAL_MODEL_PROVIDER } : {}),
     config: {
       ...CODEX_THREAD_CONFIG,
       ...(localModel
         ? {
-            model_provider: "t3-ollama",
-            "model_providers.t3-ollama": {
-              name: "Local Ollama",
-              base_url: "http://127.0.0.1:11434/v1",
-              wire_api: "responses",
-              requires_openai_auth: false,
-              supports_websockets: false,
-              request_max_retries: 0,
-              stream_max_retries: 0,
-            },
+            model_provider: CODEX_LOCAL_MODEL_PROVIDER,
+            [`model_providers.${CODEX_LOCAL_MODEL_PROVIDER}`]: CODEX_LOCAL_MODEL_PROVIDER_CONFIG,
           }
         : {}),
       ...enterpriseConfig,
@@ -1613,7 +1623,7 @@ export const layerAppServerClientFactory: Layer.Layer<
               ),
               ...(input.runtimePolicy.filesystemAccess === undefined
                 ? []
-                : ENTERPRISE_CODEX_STARTUP_ARGS),
+                : CODEX_NAMED_PROFILE_STARTUP_ARGS),
             ],
             env: environment,
             threadId: input.threadId,
@@ -4594,9 +4604,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 failure: makeProviderFailure({
                   message: payload.error.additionalDetails?.trim() || payload.error.message,
                   code: notificationCode,
-                  ...(/^http_(?:429|503|529)$/.test(notificationCode ?? "")
-                    ? { retryable: true }
-                    : {}),
+                  ...(isRetryableHttpCode(notificationCode) ? { retryable: true } : {}),
                   class:
                     notificationCode === "usageLimitExceeded" ||
                     notificationCode === "rateLimitExceeded"
@@ -5621,9 +5629,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   : makeProviderFailure({
                       message: input.failureMessage,
                       code: input.failureCode,
-                      ...(/^http_(?:429|503|529)$/.test(input.failureCode ?? "")
-                        ? { retryable: true }
-                        : {}),
+                      ...(isRetryableHttpCode(input.failureCode) ? { retryable: true } : {}),
                       class:
                         input.failureCode === "usageLimitExceeded" ||
                         input.failureCode === "rateLimitExceeded"

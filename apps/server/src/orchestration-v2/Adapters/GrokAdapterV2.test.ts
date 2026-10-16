@@ -1,6 +1,3 @@
-import * as ServerSettings from "../../serverSettings.ts";
-import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
-import * as ProcessRunner from "../../processRunner.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   ProjectId,
@@ -435,13 +432,7 @@ describe("Grok launch permission mode", () => {
       }).pipe(
         Effect.provide(
           RuntimePolicy.layerFromProjectStore.pipe(
-            Layer.provide(
-              Layer.mock(ServerSettings.ServerSettingsService)({
-                getSettings: Effect.succeed(DEFAULT_SERVER_SETTINGS),
-              }),
-            ),
-            Layer.provide(ProcessRunner.layer),
-            Layer.provide(NodeServices.layer),
+            Layer.provide(RuntimePolicy.layerNoRefinement),
             Layer.provide(
               Layer.mock(ProjectStore.ProjectStoreV2)({
                 get: () => Effect.die("the thread has a worktree"),

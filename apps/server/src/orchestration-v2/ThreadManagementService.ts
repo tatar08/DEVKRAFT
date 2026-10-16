@@ -39,6 +39,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -662,13 +663,8 @@ const make = Effect.gen(function* () {
     input: { readonly projectId: ProjectId; readonly threadId: ThreadId },
     cause: unknown,
   ) =>
-    typeof cause === "object" &&
-    cause !== null &&
-    "cause" in cause &&
-    typeof cause.cause === "object" &&
-    cause.cause !== null &&
-    "_tag" in cause.cause &&
-    cause.cause._tag === "ProjectionStoreThreadNotFoundError"
+    Predicate.hasProperty(cause, "cause") &&
+    Predicate.isTagged(cause.cause, "ProjectionStoreThreadNotFoundError")
       ? new ThreadManagementThreadNotFoundError(input)
       : new ThreadManagementProjectionLoadError({ ...input, cause });
 

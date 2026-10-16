@@ -1,8 +1,3 @@
-import * as ServerSettings from "../serverSettings.ts";
-import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
-import * as ProcessRunner from "../processRunner.ts";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as FileSystem from "effect/FileSystem";
 import { assert, it } from "@effect/vitest";
 import {
   type ModelSelection,
@@ -74,7 +69,6 @@ const supportedRuntimeModesByInstance = new Map<ProviderInstanceId, ReadonlyArra
 ]);
 const providerInstanceFor = (instanceId: ProviderInstanceId) =>
   ({
-    driverKind: instanceId === providerInstanceId ? "codex" : "grok",
     snapshot: {
       getSnapshot: Effect.succeed({
         supportedRuntimeModes: supportedRuntimeModesByInstance.get(instanceId),
@@ -83,28 +77,7 @@ const providerInstanceFor = (instanceId: ProviderInstanceId) =>
   }) as ProviderInstance;
 
 const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
-  Layer.provide(
-    Layer.mock(ServerSettings.ServerSettingsService)({
-      getSettings: Effect.succeed(DEFAULT_SERVER_SETTINGS),
-    }),
-  ),
-  Layer.provide(
-    Layer.mock(ProcessRunner.ProcessRunner)({
-      run: (input) =>
-        Effect.succeed({
-          code: 0,
-          stdout: input.args?.[0] === "--version" ? "codex-cli 0.162.1" : '[{"name":"host-tool"}]',
-          stderr: "",
-          timedOut: false,
-          stdoutTruncated: false,
-          stderrTruncated: false,
-          stdoutInvalidUtf8: false,
-          stderrInvalidUtf8: false,
-        } as ProcessRunner.ProcessRunOutput),
-    }),
-  ),
-  Layer.provide(FileSystem.layerNoop({ realPath: (path) => Effect.succeed(path) })),
-  Layer.provide(NodeServices.layer),
+  Layer.provide(RuntimePolicy.layerNoRefinement),
   Layer.provide(
     Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
       getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
@@ -138,47 +111,6 @@ const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
 );
 
 it.layer(layerTest)("RuntimePolicyV2", (it) => {
-  it.effect("enforces enterprise role permissions even when the thread requests full access", () =>
-    Effect.gen(function* () {
-      const policy = yield* RuntimePolicy.RuntimePolicyV2;
-      const now = yield* DateTime.now;
-      for (const role of [
-        "architect",
-        "coder",
-        "qa",
-        "fix1:coder",
-        "fix1:qa",
-        "fix2:coder",
-        "fix2:qa",
-      ]) {
-        const thread = {
-          ...makeThread({ now, worktreePath: "/task/worktree", runtimeMode: "full-access" }),
-          id: ThreadId.make(`enterprise:${"a".repeat(64)}:${role}`),
-        };
-        const resolved = yield* policy.resolve({ thread, modelSelection });
-        assert.equal(resolved.approvalPolicy, "never");
-        assert.equal(resolved.disableT3Mcp, true);
-        assert.equal(resolved.sandboxPolicy, undefined);
-        assert.equal(resolved.filesystemAccess, role.endsWith("coder") ? "write" : "read");
-        assert.equal(resolved.readonlyToolchainRoots?.length, 1);
-        assert.deepEqual(resolved.disabledMcpServerNames, ["t3-code", "host-tool"]);
-      }
-    }),
-  );
-  it.effect("refuses enterprise roles after a switch to an unsupported provider", () =>
-    Effect.gen(function* () {
-      const policy = yield* RuntimePolicy.RuntimePolicyV2;
-      const now = yield* DateTime.now;
-      const thread = {
-        ...makeThread({ now, worktreePath: "/task/worktree" }),
-        id: ThreadId.make(`enterprise:${"a".repeat(64)}:coder`),
-      };
-      const error = yield* policy
-        .resolve({ thread, modelSelection: { ...modelSelection, instanceId: grokInstanceId } })
-        .pipe(Effect.flip);
-      assert.equal(error._tag, "RuntimePolicyResolveError");
-    }),
-  );
   it.effect("uses the project root for local-checkout threads", () =>
     Effect.gen(function* () {
       const policy = yield* RuntimePolicy.RuntimePolicyV2;

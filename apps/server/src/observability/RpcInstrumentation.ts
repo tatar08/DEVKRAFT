@@ -1,4 +1,10 @@
-import { ORCHESTRATION_V2_WS_METHODS, WS_METHODS, type WsRpcGroup } from "@t3tools/contracts";
+import {
+  ENTERPRISE_WS_METHOD_LIST,
+  type EnterpriseWsMethod,
+  ORCHESTRATION_V2_WS_METHODS,
+  WS_METHODS,
+  type WsRpcGroup,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as References from "effect/References";
@@ -14,6 +20,10 @@ type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
  * these labels, so they keep their historical values even where they differ from the method
  * prefix. Adding an RPC to `WsRpcGroup` without a label is a type error.
  */
+const ENTERPRISE_RPC_AGGREGATES = Object.fromEntries(
+  ENTERPRISE_WS_METHOD_LIST.map((method) => [method, "enterprise"]),
+) as Record<EnterpriseWsMethod, "enterprise">;
+
 const RPC_AGGREGATES = {
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: "orchestrationV2",
   [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: "orchestration",
@@ -208,20 +218,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
-  "enterprise.startIssueWorkflow": "enterprise",
-  "enterprise.publishPullRequest": "enterprise",
-  "enterprise.collectRoleArtifact": "enterprise",
-  "enterprise.buildPullRequestDraft": "enterprise",
-  "enterprise.startWorkflow": "enterprise",
-  "enterprise.stopWorkflow": "enterprise",
-  "enterprise.cancelWorkflow": "enterprise",
-  "enterprise.getWorkflowAutomation": "enterprise",
-  "enterprise.advanceWorkflow": "enterprise",
-  "enterprise.gateAndContinue": "enterprise",
-  "enterprise.gateRole": "enterprise",
-  "enterprise.collectHandoff": "enterprise",
-  "enterprise.launchRole": "enterprise",
-  "enterprise.releaseWorkspace": "enterprise",
+  ...ENTERPRISE_RPC_AGGREGATES,
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

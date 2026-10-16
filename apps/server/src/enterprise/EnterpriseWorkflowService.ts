@@ -2,9 +2,12 @@ import { priceUsage } from "./EnterpriseCost.ts";
 import * as DateTime from "effect/DateTime";
 import {
   enterpriseRoleRun,
+  enterpriseRoleThreadId,
   isEnterpriseRoleMessage,
   isDocumentationPath,
+  type EnterpriseRevision,
 } from "./EnterpriseRun.ts";
+import { isCodexLocalModel } from "../orchestration-v2/Adapters/CodexNamedProfile.ts";
 import {
   candidateKey,
   recordProviderFailure,
@@ -40,7 +43,7 @@ import {
 
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
 const decodeResult = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowResult);
-type Revision = 0 | 1 | 2;
+type Revision = EnterpriseRevision;
 /**
  * `advance` may dispatch the next stage; `verify` re-checks an existing result and never starts,
  * retries or stops provider work. Publication uses `verify` so it cannot advance a workflow.
@@ -115,9 +118,7 @@ const make = Effect.gen(function* () {
       for (const role of (revision === 0
         ? ["architect", "coder", "qa"]
         : ["coder", "qa"]) as EnterpriseRole[]) {
-        const threadId = ThreadId.make(
-          `enterprise:${identity}:${revision === 0 ? "" : `fix${revision}:`}${role}`,
-        );
+        const threadId = enterpriseRoleThreadId(identity, role, revision);
         const projection = yield* threads
           .getProjectThread({ projectId: input.task.projectId, threadId })
           .pipe(
@@ -188,7 +189,7 @@ const make = Effect.gen(function* () {
         const failed = {
           instanceId: run.modelSelection.instanceId,
           model: run.modelSelection.model,
-          tier: run.modelSelection.model.startsWith("ollama/")
+          tier: isCodexLocalModel(run.modelSelection.model)
             ? ("local" as const)
             : ("cloud" as const),
         };
@@ -296,13 +297,13 @@ const make = Effect.gen(function* () {
             const modelSelection = yield* chooseModel(
               record,
               false,
-              !run.modelSelection.model.startsWith("ollama/"),
+              !isCodexLocalModel(run.modelSelection.model),
             );
             if (
               modelSelection !== undefined &&
               modelSelection.model !== run.modelSelection.model &&
-              modelSelection.model.startsWith("ollama/") ===
-                run.modelSelection.model.startsWith("ollama/")
+              isCodexLocalModel(modelSelection.model) ===
+                isCodexLocalModel(run.modelSelection.model)
             ) {
               const retried = yield* roles
                 .retry({ ...input, role: record.role, revision: record.revision, modelSelection })
@@ -346,7 +347,7 @@ const make = Effect.gen(function* () {
                   Effect.gen(function* () {
                     if (
                       error.reason !== "provider_unsupported" ||
-                      !modelSelection.model.startsWith("ollama/") ||
+                      !isCodexLocalModel(modelSelection.model) ||
                       !input.routing?.allowCloudFallback
                     )
                       return yield* error;

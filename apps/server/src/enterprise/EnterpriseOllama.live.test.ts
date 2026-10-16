@@ -9,7 +9,7 @@ import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import { priceUsage, type TokenUsage, type PriceTable } from "./EnterpriseCost.ts";
 import { enterpriseWorkspaceEditInstructions } from "./EnterpriseRoleOutput.ts";
-import { ENTERPRISE_CODEX_STARTUP_ARGS } from "./EnterpriseCodexSupport.ts";
+import { CODEX_NAMED_PROFILE_STARTUP_ARGS } from "../orchestration-v2/Adapters/CodexNamedProfile.ts";
 import { ProviderInstanceId } from "@t3tools/contracts";
 import {
   codexThreadRuntimeParams,
@@ -121,7 +121,7 @@ for (let iteration = 1; iteration <= repetitions; iteration++) {
             await NodeFSP.writeFile(NodePath.join(root, "host-secret.txt"), "NEVER_LEAK_SYNTHETIC");
             const child = NodeChildProcess.spawn(
               "codex",
-              ["app-server", ...ENTERPRISE_CODEX_STARTUP_ARGS],
+              ["app-server", ...CODEX_NAMED_PROFILE_STARTUP_ARGS],
               {
                 detached: true,
                 cwd,

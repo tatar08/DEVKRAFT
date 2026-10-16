@@ -9,23 +9,28 @@ import {
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
+import {
+  ENTERPRISE_WS_METHOD_LIST,
+  type EnterpriseWsMethod,
+  isEnterpriseWsMethod,
+} from "./enterprise.ts";
+
+/**
+ * Enterprise RPCs can start provider work, write task worktrees and push branches, so each one
+ * requires all three scopes. The single-scope map entry below only keeps type coverage complete.
+ */
+export const ENTERPRISE_RPC_SCOPES = [
+  AuthOrchestrationOperateScope,
+  AuthFilesystemWriteScope,
+  AuthSourceControlWriteScope,
+] as const;
+const ENTERPRISE_GUARDED_RPC_SCOPES = Object.fromEntries(
+  ENTERPRISE_WS_METHOD_LIST.map((method) => [method, AuthOrchestrationOperateScope]),
+) as Record<EnterpriseWsMethod, typeof AuthOrchestrationOperateScope>;
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
-  "enterprise.startIssueWorkflow": AuthOrchestrationOperateScope,
-  "enterprise.publishPullRequest": AuthSourceControlWriteScope,
-  "enterprise.collectRoleArtifact": AuthOrchestrationOperateScope,
-  "enterprise.buildPullRequestDraft": AuthOrchestrationOperateScope,
-  "enterprise.startWorkflow": AuthOrchestrationOperateScope,
-  "enterprise.stopWorkflow": AuthOrchestrationOperateScope,
-  "enterprise.cancelWorkflow": AuthOrchestrationOperateScope,
-  "enterprise.getWorkflowAutomation": AuthOrchestrationOperateScope,
-  "enterprise.advanceWorkflow": AuthOrchestrationOperateScope,
-  "enterprise.gateAndContinue": AuthOrchestrationOperateScope,
-  "enterprise.gateRole": AuthOrchestrationOperateScope,
-  "enterprise.collectHandoff": AuthOrchestrationOperateScope,
-  "enterprise.launchRole": AuthOrchestrationOperateScope,
-  "enterprise.releaseWorkspace": AuthOrchestrationOperateScope,
+  ...ENTERPRISE_GUARDED_RPC_SCOPES,
   [WS_METHODS.serverRunStorageCleanup]: AuthSettingsWriteScope,
   // Endpoint checks exist to configure exports, so they need the same grant as saving them.
   [WS_METHODS.serverCheckOtlpEndpoint]: AuthSettingsWriteScope,
@@ -71,23 +76,7 @@ export function clientRpcRequiredScopes(
   method: string,
   input: unknown,
 ): readonly AuthEnvironmentScope[] {
-  if (
-    method === "enterprise.startIssueWorkflow" ||
-    method === "enterprise.publishPullRequest" ||
-    method === "enterprise.collectRoleArtifact" ||
-    method === "enterprise.buildPullRequestDraft" ||
-    method === "enterprise.startWorkflow" ||
-    method === "enterprise.stopWorkflow" ||
-    method === "enterprise.cancelWorkflow" ||
-    method === "enterprise.getWorkflowAutomation" ||
-    method === "enterprise.advanceWorkflow" ||
-    method === "enterprise.gateAndContinue" ||
-    method === "enterprise.gateRole" ||
-    method === "enterprise.collectHandoff" ||
-    method === "enterprise.launchRole" ||
-    method === "enterprise.releaseWorkspace"
-  )
-    return [AuthOrchestrationOperateScope, AuthFilesystemWriteScope, AuthSourceControlWriteScope];
+  if (isEnterpriseWsMethod(method)) return ENTERPRISE_RPC_SCOPES;
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {
     const payload = decodePrepareThread(input);
     if (payload.mode === "worktree" && payload.threadId !== undefined)

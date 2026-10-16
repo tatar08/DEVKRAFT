@@ -1,4 +1,4 @@
-import { EnterpriseStartIssueWorkflowInput } from "./enterprise.ts";
+import { ENTERPRISE_WS_METHODS, EnterpriseStartIssueWorkflowInput } from "./enterprise.ts";
 import {
   EnterprisePublishPullRequestInput,
   EnterprisePublishedPullRequest,
@@ -1902,74 +1902,74 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
-const WsEnterprisePublishPullRequestRpc = Rpc.make("enterprise.publishPullRequest", {
+const WsEnterprisePublishPullRequestRpc = Rpc.make(ENTERPRISE_WS_METHODS.publishPullRequest, {
   payload: EnterprisePublishPullRequestInput,
   success: EnterprisePublishedPullRequest,
   error: EnterprisePublicationError,
 });
 
-const WsEnterpriseStartIssueWorkflowRpc = Rpc.make("enterprise.startIssueWorkflow", {
+const WsEnterpriseStartIssueWorkflowRpc = Rpc.make(ENTERPRISE_WS_METHODS.startIssueWorkflow, {
   payload: EnterpriseStartIssueWorkflowInput,
   success: EnterpriseStartWorkflowResult,
   error: EnterpriseRoleError,
 });
 
-const WsEnterpriseStartWorkflowRpc = Rpc.make("enterprise.startWorkflow", {
+const WsEnterpriseStartWorkflowRpc = Rpc.make(ENTERPRISE_WS_METHODS.startWorkflow, {
   payload: EnterpriseAdvanceWorkflowInput,
   success: EnterpriseStartWorkflowResult,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseCancelWorkflowRpc = Rpc.make("enterprise.cancelWorkflow", {
+const WsEnterpriseCancelWorkflowRpc = Rpc.make(ENTERPRISE_WS_METHODS.cancelWorkflow, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: EnterpriseCancelWorkflowResult,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseStopWorkflowRpc = Rpc.make("enterprise.stopWorkflow", {
+const WsEnterpriseStopWorkflowRpc = Rpc.make(ENTERPRISE_WS_METHODS.stopWorkflow, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: EnterpriseWorkflowAutomationStatus,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseGetWorkflowAutomationRpc = Rpc.make("enterprise.getWorkflowAutomation", {
+const WsEnterpriseGetWorkflowAutomationRpc = Rpc.make(ENTERPRISE_WS_METHODS.getWorkflowAutomation, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: EnterpriseWorkflowAutomationStatus,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseAdvanceWorkflowRpc = Rpc.make("enterprise.advanceWorkflow", {
+const WsEnterpriseAdvanceWorkflowRpc = Rpc.make(ENTERPRISE_WS_METHODS.advanceWorkflow, {
   payload: EnterpriseAdvanceWorkflowInput,
   success: EnterpriseAdvanceWorkflowResult,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseGateAndContinueRpc = Rpc.make("enterprise.gateAndContinue", {
+const WsEnterpriseGateAndContinueRpc = Rpc.make(ENTERPRISE_WS_METHODS.gateAndContinue, {
   payload: EnterpriseGateAndContinueInput,
   success: EnterpriseGateAndContinueResult,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseCollectRoleArtifactRpc = Rpc.make("enterprise.collectRoleArtifact", {
+const WsEnterpriseCollectRoleArtifactRpc = Rpc.make(ENTERPRISE_WS_METHODS.collectRoleArtifact, {
   payload: EnterpriseCollectRoleArtifactInput,
   success: EnterpriseRoleArtifact,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseBuildPullRequestDraftRpc = Rpc.make("enterprise.buildPullRequestDraft", {
+const WsEnterpriseBuildPullRequestDraftRpc = Rpc.make(ENTERPRISE_WS_METHODS.buildPullRequestDraft, {
   payload: EnterpriseBuildPullRequestDraftInput,
   success: EnterprisePullRequestDraft,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseGateRoleRpc = Rpc.make("enterprise.gateRole", {
+const WsEnterpriseGateRoleRpc = Rpc.make(ENTERPRISE_WS_METHODS.gateRole, {
   payload: EnterpriseGateRoleInput,
   success: EnterpriseSnapshotGateResult,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseCollectHandoffRpc = Rpc.make("enterprise.collectHandoff", {
+const WsEnterpriseCollectHandoffRpc = Rpc.make(ENTERPRISE_WS_METHODS.collectHandoff, {
   payload: EnterpriseCollectHandoffInput,
   success: AgentHandoff,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseReleaseWorkspaceRpc = Rpc.make("enterprise.releaseWorkspace", {
+const WsEnterpriseReleaseWorkspaceRpc = Rpc.make(ENTERPRISE_WS_METHODS.releaseWorkspace, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: Schema.Void,
   error: EnterpriseRoleError,
 });
-const WsEnterpriseLaunchRoleRpc = Rpc.make("enterprise.launchRole", {
+const WsEnterpriseLaunchRoleRpc = Rpc.make(ENTERPRISE_WS_METHODS.launchRole, {
   payload: EnterpriseLaunchRoleInput,
   success: EnterpriseLaunchRoleResult,
   error: EnterpriseRoleError,

@@ -9,6 +9,7 @@ import * as EnterprisePricing from "../enterprise/EnterprisePricing.ts";
 import * as EnterpriseWorkflows from "../enterprise/EnterpriseWorkflowService.ts";
 import * as EnterpriseRoles from "../enterprise/EnterpriseRoleService.ts";
 import * as EnterpriseWorkspace from "../enterprise/EnterpriseWorkspaceService.ts";
+import * as EnterpriseRuntimePolicy from "../enterprise/EnterpriseRuntimePolicy.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as Layer from "effect/Layer";
@@ -70,7 +71,8 @@ export const layerEventInfrastructure = Layer.mergeAll(
 );
 
 const layerRuntimePolicyProvided = RuntimePolicy.layerFromProjectStore.pipe(
-  Layer.provide(EnterpriseProcessRunner.layer),
+  // Enterprise owns role-thread policy through the core refinement hook, not core imports.
+  Layer.provide(EnterpriseRuntimePolicy.layer.pipe(Layer.provide(EnterpriseProcessRunner.layer))),
   Layer.provide(ProjectStore.layer),
 );
 

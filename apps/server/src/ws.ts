@@ -1,6 +1,6 @@
 import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
 import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
-import { EnterpriseRoleError } from "@t3tools/contracts";
+import { ENTERPRISE_WS_METHODS, EnterpriseRoleError } from "@t3tools/contracts";
 import * as EnterpriseAutomation from "./enterprise/EnterpriseWorkflowAutomation.ts";
 import * as EnterpriseWorkflows from "./enterprise/EnterpriseWorkflowService.ts";
 import * as EnterpriseRoles from "./enterprise/EnterpriseRoleService.ts";
@@ -550,11 +550,11 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
 // Separate automation handlers keep the RPC handler type inference bounded.
 const CoreWsRpcGroup = ServerWsRpcGroup.omit(
-  "enterprise.startIssueWorkflow",
-  "enterprise.startWorkflow",
-  "enterprise.stopWorkflow",
-  "enterprise.cancelWorkflow",
-  "enterprise.getWorkflowAutomation",
+  ENTERPRISE_WS_METHODS.startIssueWorkflow,
+  ENTERPRISE_WS_METHODS.startWorkflow,
+  ENTERPRISE_WS_METHODS.stopWorkflow,
+  ENTERPRISE_WS_METHODS.cancelWorkflow,
+  ENTERPRISE_WS_METHODS.getWorkflowAutomation,
 );
 // When a resuming client's cursor is more than this many events behind the
 // current head, skip the per-event catch-up replay and send a fresh shell
@@ -1967,15 +1967,18 @@ const layerCoreWsRpc = (
                 ),
             ),
           ),
-        "enterprise.publishPullRequest": (input) => enterprisePublication.publish(input),
-        "enterprise.collectRoleArtifact": (input) => enterpriseRoles.collectRoleArtifact(input),
-        "enterprise.buildPullRequestDraft": (input) => enterpriseRoles.buildPullRequestDraft(input),
-        "enterprise.advanceWorkflow": (input) => enterpriseWorkflows.advance(input),
-        "enterprise.gateAndContinue": (input) => enterpriseRoles.gateAndContinue(input),
-        "enterprise.gateRole": (input) => enterpriseRoles.gateRole(input),
-        "enterprise.collectHandoff": (input) => enterpriseRoles.collectHandoff(input),
-        "enterprise.releaseWorkspace": (input) => enterpriseRoles.releaseWorkspace(input),
-        "enterprise.launchRole": (input) =>
+        [ENTERPRISE_WS_METHODS.publishPullRequest]: (input) => enterprisePublication.publish(input),
+        [ENTERPRISE_WS_METHODS.collectRoleArtifact]: (input) =>
+          enterpriseRoles.collectRoleArtifact(input),
+        [ENTERPRISE_WS_METHODS.buildPullRequestDraft]: (input) =>
+          enterpriseRoles.buildPullRequestDraft(input),
+        [ENTERPRISE_WS_METHODS.advanceWorkflow]: (input) => enterpriseWorkflows.advance(input),
+        [ENTERPRISE_WS_METHODS.gateAndContinue]: (input) => enterpriseRoles.gateAndContinue(input),
+        [ENTERPRISE_WS_METHODS.gateRole]: (input) => enterpriseRoles.gateRole(input),
+        [ENTERPRISE_WS_METHODS.collectHandoff]: (input) => enterpriseRoles.collectHandoff(input),
+        [ENTERPRISE_WS_METHODS.releaseWorkspace]: (input) =>
+          enterpriseRoles.releaseWorkspace(input),
+        [ENTERPRISE_WS_METHODS.launchRole]: (input) =>
           startup
             .enqueueCommand(enterpriseRoles.launch(input))
             .pipe(
@@ -3189,35 +3192,35 @@ const layerWsRpc = (
       serverBrowser,
     ),
     ServerWsRpcGroup.toLayerHandler(
-      "enterprise.startIssueWorkflow",
+      ENTERPRISE_WS_METHODS.startIssueWorkflow,
       Effect.gen(function* () {
         const service = yield* EnterpriseIssueWorkflows.EnterpriseIssueWorkflowService;
         return (input) => service.start(input, currentSession.sessionId);
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
-      "enterprise.startWorkflow",
+      ENTERPRISE_WS_METHODS.startWorkflow,
       Effect.gen(function* () {
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
         return (input) => automation.start(input, currentSession.sessionId);
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
-      "enterprise.cancelWorkflow",
+      ENTERPRISE_WS_METHODS.cancelWorkflow,
       Effect.gen(function* () {
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
         return (input) => automation.cancel(input, currentSession.sessionId);
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
-      "enterprise.stopWorkflow",
+      ENTERPRISE_WS_METHODS.stopWorkflow,
       Effect.gen(function* () {
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
         return (input) => automation.stop(input);
       }),
     ),
     ServerWsRpcGroup.toLayerHandler(
-      "enterprise.getWorkflowAutomation",
+      ENTERPRISE_WS_METHODS.getWorkflowAutomation,
       Effect.gen(function* () {
         const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
         return (input) => automation.status(input);

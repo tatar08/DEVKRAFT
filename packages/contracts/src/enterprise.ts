@@ -593,3 +593,29 @@ export const EnterpriseStartIssueWorkflowInput = Schema.Struct({
   issueUrl: EnterpriseGithubIssueUrl,
 });
 export type EnterpriseStartIssueWorkflowInput = typeof EnterpriseStartIssueWorkflowInput.Type;
+
+/**
+ * Every Enterprise RPC method, in one place so the RPC group, authorization and instrumentation
+ * cannot drift apart.
+ */
+export const ENTERPRISE_WS_METHODS = {
+  startIssueWorkflow: "enterprise.startIssueWorkflow",
+  publishPullRequest: "enterprise.publishPullRequest",
+  collectRoleArtifact: "enterprise.collectRoleArtifact",
+  buildPullRequestDraft: "enterprise.buildPullRequestDraft",
+  startWorkflow: "enterprise.startWorkflow",
+  stopWorkflow: "enterprise.stopWorkflow",
+  cancelWorkflow: "enterprise.cancelWorkflow",
+  getWorkflowAutomation: "enterprise.getWorkflowAutomation",
+  advanceWorkflow: "enterprise.advanceWorkflow",
+  gateAndContinue: "enterprise.gateAndContinue",
+  gateRole: "enterprise.gateRole",
+  collectHandoff: "enterprise.collectHandoff",
+  launchRole: "enterprise.launchRole",
+  releaseWorkspace: "enterprise.releaseWorkspace",
+} as const;
+export type EnterpriseWsMethod = (typeof ENTERPRISE_WS_METHODS)[keyof typeof ENTERPRISE_WS_METHODS];
+export const ENTERPRISE_WS_METHOD_LIST: ReadonlyArray<EnterpriseWsMethod> =
+  Object.values(ENTERPRISE_WS_METHODS);
+export const isEnterpriseWsMethod = (method: string): method is EnterpriseWsMethod =>
+  (ENTERPRISE_WS_METHOD_LIST as ReadonlyArray<string>).includes(method);

@@ -576,8 +576,10 @@ const scenario = (options: {
                 }));
               if (options.workflow === "happy" && !auto && !options.denyTools) {
                 // Verification is read-only: it must not launch the Architect on a fresh task.
-                const verified = yield* workflow.verify(request).pipe(Effect.flip);
-                assert.equal(verified.reason, "predecessor_incomplete");
+                const verified = yield* workflow.verify(request).pipe(Effect.result);
+                assert.equal(verified._tag, "Failure");
+                if (verified._tag === "Failure")
+                  assert.equal(verified.failure.reason, "predecessor_incomplete");
                 assert.lengthOf(launches, 0);
               }
               const first = auto

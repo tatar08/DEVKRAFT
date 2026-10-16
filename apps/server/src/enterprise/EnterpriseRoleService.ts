@@ -1,20 +1,21 @@
 import {
   enterpriseRoleRun,
+  enterpriseRoleThreadId,
   isEnterpriseRoleMessage,
   isDocumentationPath,
+  type EnterpriseRevision,
 } from "./EnterpriseRun.ts";
+import {
+  codexNativeModel,
+  isCodexLocalModel,
+} from "../orchestration-v2/Adapters/CodexNamedProfile.ts";
 import {
   decodeEnterpriseRoleOutput,
   encodeEnterpriseRoleOutput,
   enterpriseRoleInstructions,
 } from "./EnterpriseRoleOutput.ts";
 import { renderEnterprisePullRequestDraft } from "./EnterprisePullRequestDraft.ts";
-import * as ServerSettings from "../serverSettings.ts";
-import { CodexSettings } from "@t3tools/contracts";
-import {
-  ENTERPRISE_CODEX_VERSION,
-  isDefaultEnterpriseCodexConfig,
-} from "./EnterpriseCodexSupport.ts";
+import { makeEnterpriseCodexProbe } from "./EnterpriseCodexSupport.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import {
   AgentHandoff,
@@ -33,6 +34,7 @@ import {
   EnterpriseLaunchRoleInput,
   EnterpriseReleaseWorkspaceInput,
   EnterpriseRoleError,
+  type EnterpriseRole,
   MessageId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -76,7 +78,6 @@ const decodeGateInput = Schema.decodeUnknownEffect(EnterpriseGateRoleInput);
 const decodeHandoffInput = Schema.decodeUnknownEffect(EnterpriseCollectHandoffInput);
 const decodeHandoff = Schema.decodeUnknownEffect(AgentHandoff);
 const decodeReleaseInput = Schema.decodeUnknownEffect(EnterpriseReleaseWorkspaceInput);
-const decodeCodexConfig = Schema.decodeUnknownEffect(CodexSettings);
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseLaunchRoleInput);
 const encodeContext = Schema.encodeEffect(
   Schema.fromJsonString(
@@ -127,7 +128,7 @@ export class EnterpriseRoleService extends Context.Service<
 const make = Effect.gen(function* () {
   const git = yield* Git.GitVcsDriver;
   const secrets = yield* Secrets.EnterpriseSecretService;
-  const settings = yield* ServerSettings.ServerSettingsService;
+  const codex = yield* makeEnterpriseCodexProbe;
   const fs = yield* FileSystem.FileSystem;
   const runner = yield* ProcessRunner.ProcessRunner;
   const projects = yield* ProjectStore.ProjectStoreV2;
@@ -139,28 +140,18 @@ const make = Effect.gen(function* () {
   const validateModel = Effect.fn("EnterpriseRoleService.validateModel")(function* (
     modelSelection: EnterpriseLaunchRoleInput["modelSelection"],
   ) {
+    if (modelSelection.instanceId !== "codex")
+      return yield* new EnterpriseRoleError({ reason: "provider_unsupported" });
     const instance = yield* providers.getInstance(modelSelection.instanceId);
-    if (instance?.driverKind !== "codex")
-      return yield* new EnterpriseRoleError({ reason: "provider_unsupported" });
-    const config = yield* decodeCodexConfig(
-      (yield* settings.getSettings).providerInstances[modelSelection.instanceId]?.config ?? {},
-    );
-    if (!isDefaultEnterpriseCodexConfig(config))
-      return yield* new EnterpriseRoleError({ reason: "provider_unsupported" });
-    const version = yield* runner.run({
-      command: "codex",
-      args: ["--version"],
-      timeout: "5 seconds",
-      maxOutputBytes: 4096,
-    });
-    if (
-      modelSelection.instanceId !== "codex" ||
-      version.code !== 0 ||
-      version.stdout.trim() !== ENTERPRISE_CODEX_VERSION
-    )
-      return yield* new EnterpriseRoleError({ reason: "provider_unsupported" });
-    if (modelSelection.model.startsWith("ollama/")) {
-      const model = modelSelection.model.slice(7);
+    yield* codex
+      .checkVersion({ instanceId: modelSelection.instanceId, driverKind: instance?.driverKind })
+      .pipe(
+        Effect.mapError(
+          (cause) => new EnterpriseRoleError({ reason: "provider_unsupported", cause }),
+        ),
+      );
+    if (isCodexLocalModel(modelSelection.model)) {
+      const model = codexNativeModel(modelSelection.model);
       if (
         !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,200}$/.test(model) ||
         /(?:^|[-:])cloud(?:$|[-:])/i.test(model)
@@ -228,8 +219,8 @@ const make = Effect.gen(function* () {
     });
     if (owned.retired) return yield* new EnterpriseRoleError({ reason: "request_mismatch" });
     const identity = owned.branch.slice("enterprise/task-".length);
-    const roleThreadId = (role: string, round: number = revision) =>
-      ThreadId.make(`enterprise:${identity}:${round === 0 ? "" : `fix${round}:`}${role}`);
+    const roleThreadId = (role: EnterpriseRole, round: EnterpriseRevision = revision) =>
+      enterpriseRoleThreadId(identity, role, round);
     const threadId = roleThreadId(input.role);
     const messageId = MessageId.make(`${threadId}:initial`);
     let predecessor = "";
@@ -241,7 +232,7 @@ const make = Effect.gen(function* () {
         input.role === "coder"
           ? roleThreadId(
               revision === 0 ? "architect" : gateFailure === undefined ? "qa" : "coder",
-              Math.max(0, revision - 1),
+              Math.max(0, revision - 1) as EnterpriseRevision,
             )
           : roleThreadId("coder");
       const prior = yield* threads
@@ -276,7 +267,7 @@ const make = Effect.gen(function* () {
       if (input.role === "coder") {
         const artifact = yield* collectRoleArtifact({ ...input, role: "architect", revision: 0 });
         if (
-          input.modelSelection.model.startsWith("ollama/") &&
+          isCodexLocalModel(input.modelSelection.model) &&
           (artifact.output.kind !== "enterprise_spec" ||
             !artifact.output.affectedPaths.every(isDocumentationPath))
         )
@@ -442,9 +433,7 @@ const make = Effect.gen(function* () {
     const owned = yield* workspace.prepare({ ...input, spec: input.task });
     const identity = owned.branch.slice("enterprise/task-".length);
     const revision = input.revision ?? 0;
-    const threadId = ThreadId.make(
-      `enterprise:${identity}:${revision === 0 ? "" : `fix${revision}:`}${input.role}`,
-    );
+    const threadId = enterpriseRoleThreadId(identity, input.role, revision);
     if (owned.retired || !owned.boundThreadIds?.includes(threadId))
       return yield* new EnterpriseRoleError({ reason: "request_mismatch" });
     const projection = yield* threads.getProjectThread({
@@ -475,8 +464,8 @@ const make = Effect.gen(function* () {
         (failure.failure.retryable === true &&
           /^(?:http[_-])?(?:429|503|529)$/.test(failure.failure.code ?? ""))
       ) ||
-      run.modelSelection.model.startsWith("ollama/") !==
-        input.modelSelection.model.startsWith("ollama/") ||
+      isCodexLocalModel(run.modelSelection.model) !==
+        isCodexLocalModel(input.modelSelection.model) ||
       run.modelSelection.model === input.modelSelection.model
     )
       return yield* new EnterpriseRoleError({ reason: "request_mismatch" });
@@ -539,9 +528,7 @@ const make = Effect.gen(function* () {
     const revision = input.revision ?? 0;
     if (input.role === "architect" && revision !== 0)
       return yield* new EnterpriseRoleError({ reason: "invalid_input" });
-    const threadId = ThreadId.make(
-      `enterprise:${identity}:${revision === 0 ? "" : `fix${revision}:`}${input.role}`,
-    );
+    const threadId = enterpriseRoleThreadId(identity, input.role, revision);
     if (!owned.boundThreadIds?.includes(threadId))
       return yield* new EnterpriseRoleError({ reason: "request_mismatch" });
     const projection = yield* threads.getProjectThread({
@@ -579,7 +566,7 @@ const make = Effect.gen(function* () {
         `${checkpoint.ref}^{commit}`,
       ],
     })).stdout.trim();
-    if (input.role === "coder" && run.modelSelection.model.startsWith("ollama/")) {
+    if (input.role === "coder" && isCodexLocalModel(run.modelSelection.model)) {
       const changed = yield* git.execute({
         operation: "EnterpriseRoleService.localScope",
         cwd: owned.worktreePath,
