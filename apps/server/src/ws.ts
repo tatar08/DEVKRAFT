@@ -1,3 +1,9 @@
+import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
+import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
+import { EnterpriseRoleError } from "@t3tools/contracts";
+import * as EnterpriseAutomation from "./enterprise/EnterpriseWorkflowAutomation.ts";
+import * as EnterpriseWorkflows from "./enterprise/EnterpriseWorkflowService.ts";
+import * as EnterpriseRoles from "./enterprise/EnterpriseRoleService.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
@@ -542,6 +548,14 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
 // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
+// Separate automation handlers keep the RPC handler type inference bounded.
+const CoreWsRpcGroup = ServerWsRpcGroup.omit(
+  "enterprise.startIssueWorkflow",
+  "enterprise.startWorkflow",
+  "enterprise.stopWorkflow",
+  "enterprise.cancelWorkflow",
+  "enterprise.getWorkflowAutomation",
+);
 // When a resuming client's cursor is more than this many events behind the
 // current head, skip the per-event catch-up replay and send a fresh shell
 // snapshot instead. Replaying each intervening event costs a shell refetch;
@@ -1182,14 +1196,14 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   },
 );
 
-const layerWsRpc = (
+const layerCoreWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientOrigin: OrchestrationClientOrigin,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
   serverBrowser: ServerBrowser.ServerBrowser["Service"],
 ) =>
-  ServerWsRpcGroup.toLayer(
+  CoreWsRpcGroup.toLayer(
     Effect.gen(function* () {
       const currentSessionId = currentSession.sessionId;
       const sql = yield* SqlClient.SqlClient;
@@ -1222,6 +1236,9 @@ const layerWsRpc = (
             return Effect.void;
         }
       };
+      const enterprisePublication = yield* EnterprisePublication.EnterprisePublicationService;
+      const enterpriseWorkflows = yield* EnterpriseWorkflows.EnterpriseWorkflowService;
+      const enterpriseRoles = yield* EnterpriseRoles.EnterpriseRoleService;
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
       const providerSessionManager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const scheduledTasks = yield* ScheduledTasks.ScheduledTaskService;
@@ -1817,7 +1834,7 @@ const layerWsRpc = (
         return result;
       });
 
-      const handlers = ServerWsRpcGroup.of({
+      const handlers = CoreWsRpcGroup.of({
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,
@@ -1950,6 +1967,24 @@ const layerWsRpc = (
                 ),
             ),
           ),
+        "enterprise.publishPullRequest": (input) => enterprisePublication.publish(input),
+        "enterprise.collectRoleArtifact": (input) => enterpriseRoles.collectRoleArtifact(input),
+        "enterprise.buildPullRequestDraft": (input) => enterpriseRoles.buildPullRequestDraft(input),
+        "enterprise.advanceWorkflow": (input) => enterpriseWorkflows.advance(input),
+        "enterprise.gateAndContinue": (input) => enterpriseRoles.gateAndContinue(input),
+        "enterprise.gateRole": (input) => enterpriseRoles.gateRole(input),
+        "enterprise.collectHandoff": (input) => enterpriseRoles.collectHandoff(input),
+        "enterprise.releaseWorkspace": (input) => enterpriseRoles.releaseWorkspace(input),
+        "enterprise.launchRole": (input) =>
+          startup
+            .enqueueCommand(enterpriseRoles.launch(input))
+            .pipe(
+              Effect.mapError((cause) =>
+                cause._tag === "EnterpriseRoleError"
+                  ? cause
+                  : new EnterpriseRoleError({ reason: "launch_failed", cause }),
+              ),
+            ),
         [ORCHESTRATION_V2_WS_METHODS.launchThread]: (input) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": input.commandId,
@@ -3136,6 +3171,58 @@ const layerWsRpc = (
       });
       return handlers;
     }),
+  );
+
+const layerWsRpc = (
+  currentSession: EnvironmentAuth.AuthenticatedSession,
+  clientOrigin: OrchestrationClientOrigin,
+  clientAnalyticsProps: Readonly<Record<string, unknown>>,
+  previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
+  serverBrowser: ServerBrowser.ServerBrowser["Service"],
+) =>
+  Layer.mergeAll(
+    layerCoreWsRpc(
+      currentSession,
+      clientOrigin,
+      clientAnalyticsProps,
+      previewAutomationBroker,
+      serverBrowser,
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      "enterprise.startIssueWorkflow",
+      Effect.gen(function* () {
+        const service = yield* EnterpriseIssueWorkflows.EnterpriseIssueWorkflowService;
+        return (input) => service.start(input, currentSession.sessionId);
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      "enterprise.startWorkflow",
+      Effect.gen(function* () {
+        const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
+        return (input) => automation.start(input, currentSession.sessionId);
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      "enterprise.cancelWorkflow",
+      Effect.gen(function* () {
+        const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
+        return (input) => automation.cancel(input, currentSession.sessionId);
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      "enterprise.stopWorkflow",
+      Effect.gen(function* () {
+        const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
+        return (input) => automation.stop(input);
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      "enterprise.getWorkflowAutomation",
+      Effect.gen(function* () {
+        const automation = yield* EnterpriseAutomation.EnterpriseWorkflowAutomation;
+        return (input) => automation.status(input);
+      }),
+    ),
   );
 
 // A defect in a handler's effect fails only its own request. RpcServer's default

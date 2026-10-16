@@ -218,9 +218,20 @@ This hook checks pending context transfers targeting the thread/run and chooses 
 
 Provider adapters own native details. The orchestrator owns the relationship, source point, durable transfer record, and command receipts.
 
-For Codex, native `thread/fork` accepts an inclusive `lastTurnId` boundary. When the app source point is a completed provider turn with a native turn reference, the Codex adapter passes that native id so the provider creates the fork at the requested point directly. This is the only viable path on paginated Codex threads, which reject `thread/rollback`. If no native turn reference is available, the adapter falls back to forking the latest native state and rolling back the fork by the number of later terminal provider turns — and reports an explicit failure when the forked thread uses paginated history, since that fallback cannot be honored there. The orchestrator still passes a provider-neutral source point and source provider-turn history; it does not encode Codex boundary or rollback policy.
+For Codex, native `thread/fork` accepts an inclusive `lastTurnId` boundary. When the source point has a native turn reference, the adapter passes that reference directly. Otherwise it forks the latest native state and trims the fork using paginated history and `thread/revert`. A legacy-history fork that needs trimming is rejected explicitly.
 
-The same paginated-history constraint applies to direct checkpoint rollback: `thread/rollback` only works on legacy-history Codex threads. The V2 adapter probes `historyMode` before rolling back and fails explicitly on paginated threads rather than sending a request Codex will reject. The paginated equivalent (page `thread/turns/list` to find the first removed turn, then `thread/revert` with `beforeTurnId`) is not implemented yet.
+Direct checkpoint rollback also uses the implemented paginated-history path:
+[CodexAdapterV2](../../apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts)
+checks the history mode and resumes an unloaded thread before reverting it.
+[CodexThreadRevert](../../apps/server/src/provider/CodexThreadRevert.ts) pages
+`thread/turns/list` to locate the first removed turn and sends `thread/revert`
+with `beforeTurnId`. Legacy-history rollback is rejected by the current adapter.
+The orchestrator supplies a provider-neutral source point; these native protocol
+details remain at the adapter boundary.
+
+These paths are implemented V2 behavior. Enterprise task/PR recovery remains
+separate work in [Blueprint Phase 4](../T3_Code_Enterprise_Blueprint_v3_MVP.md#phase-4-v2-enterprise-recovery);
+it should reuse this lineage/checkpoint foundation rather than replace it.
 
 ## Data Ownership
 

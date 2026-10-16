@@ -49,6 +49,7 @@ export interface ExecuteGitInput {
   readonly allowNonZeroExit?: boolean;
   readonly timeoutMs?: number | null;
   readonly maxOutputBytes?: number;
+  readonly outputMode?: VcsProcess.VcsProcessInput["outputMode"];
   readonly appendTruncationMarker?: boolean;
   /**
    * With `appendTruncationMarker`, keep invoking the line callbacks after the
@@ -149,6 +150,8 @@ export interface CreateWorktreeProgress {
 }
 
 export interface CreateWorktreeOptions {
+  /** Task preparation must not execute checkout hooks on the host. */
+  readonly disableHooks?: boolean;
   readonly progress?: CreateWorktreeProgress;
   /**
    * The project-over-environment `worktreeSubmodules` setting. Null (or

@@ -45,6 +45,10 @@ import type {
 } from "./selectionTransition.ts";
 
 export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
+  disableT3Mcp: Schema.optional(Schema.Boolean),
+  filesystemAccess: Schema.optional(Schema.Literals(["read", "write"])),
+  readonlyToolchainRoots: Schema.optional(Schema.Array(Schema.String)),
+  disabledMcpServerNames: Schema.optional(Schema.Array(Schema.String)),
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   cwd: Schema.NullOr(Schema.String),

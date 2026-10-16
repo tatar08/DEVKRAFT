@@ -45,3 +45,6 @@ node_modules/
 
 # pnpm content-addressable store; never belongs in the repo.
 .pnpm-store/
+
+# Local T3 runtime data (userdata, caches, worktrees); never commit.
+.t3-data/

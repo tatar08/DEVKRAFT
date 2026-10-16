@@ -2,6 +2,8 @@ import {
   AuthEnvironmentMaintainScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
+  AuthFilesystemWriteScope,
+  clientRpcRequiredScopes,
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
   DEFAULT_SERVER_SETTINGS,
@@ -451,3 +453,69 @@ it.effect("denies manual cleanup before the handler without settings permission"
     expect(handled).toBe(false);
   }).pipe(Effect.scoped),
 );
+
+it("requires all execution/filesystem/source-control scopes for enterprise launches", () => {
+  expect(clientRpcRequiredScopes("enterprise.startIssueWorkflow", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.publishPullRequest", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.collectRoleArtifact", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.buildPullRequestDraft", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.advanceWorkflow", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.gateAndContinue", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.gateRole", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.collectHandoff", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.releaseWorkspace", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+  expect(clientRpcRequiredScopes("enterprise.launchRole", {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+});
+
+it.each([
+  "enterprise.startWorkflow",
+  "enterprise.stopWorkflow",
+  "enterprise.cancelWorkflow",
+  "enterprise.getWorkflowAutomation",
+])("requires all three scopes for workflow automation %s", (method) => {
+  expect(clientRpcRequiredScopes(method, {})).toEqual([
+    AuthOrchestrationOperateScope,
+    AuthFilesystemWriteScope,
+    AuthSourceControlWriteScope,
+  ]);
+});

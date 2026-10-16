@@ -1,3 +1,30 @@
+import { EnterpriseStartIssueWorkflowInput } from "./enterprise.ts";
+import {
+  EnterprisePublishPullRequestInput,
+  EnterprisePublishedPullRequest,
+  EnterprisePublicationError,
+} from "./enterprise.ts";
+import {
+  EnterpriseWorkflowAutomationStatus,
+  EnterpriseStartWorkflowResult,
+  EnterpriseCancelWorkflowResult,
+  EnterpriseAdvanceWorkflowInput,
+  EnterpriseAdvanceWorkflowResult,
+  EnterpriseGateAndContinueInput,
+  EnterpriseGateAndContinueResult,
+  EnterpriseReleaseWorkspaceInput,
+  EnterpriseCollectHandoffInput,
+  EnterpriseCollectRoleArtifactInput,
+  EnterpriseRoleArtifact,
+  EnterpriseGateRoleInput,
+  EnterpriseBuildPullRequestDraftInput,
+  EnterprisePullRequestDraft,
+  EnterpriseSnapshotGateResult,
+  AgentHandoff,
+  EnterpriseLaunchRoleInput,
+  EnterpriseLaunchRoleResult,
+  EnterpriseRoleError,
+} from "./enterprise.ts";
 import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
@@ -1875,7 +1902,94 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+const WsEnterprisePublishPullRequestRpc = Rpc.make("enterprise.publishPullRequest", {
+  payload: EnterprisePublishPullRequestInput,
+  success: EnterprisePublishedPullRequest,
+  error: EnterprisePublicationError,
+});
+
+const WsEnterpriseStartIssueWorkflowRpc = Rpc.make("enterprise.startIssueWorkflow", {
+  payload: EnterpriseStartIssueWorkflowInput,
+  success: EnterpriseStartWorkflowResult,
+  error: EnterpriseRoleError,
+});
+
+const WsEnterpriseStartWorkflowRpc = Rpc.make("enterprise.startWorkflow", {
+  payload: EnterpriseAdvanceWorkflowInput,
+  success: EnterpriseStartWorkflowResult,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseCancelWorkflowRpc = Rpc.make("enterprise.cancelWorkflow", {
+  payload: EnterpriseReleaseWorkspaceInput,
+  success: EnterpriseCancelWorkflowResult,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseStopWorkflowRpc = Rpc.make("enterprise.stopWorkflow", {
+  payload: EnterpriseReleaseWorkspaceInput,
+  success: EnterpriseWorkflowAutomationStatus,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseGetWorkflowAutomationRpc = Rpc.make("enterprise.getWorkflowAutomation", {
+  payload: EnterpriseReleaseWorkspaceInput,
+  success: EnterpriseWorkflowAutomationStatus,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseAdvanceWorkflowRpc = Rpc.make("enterprise.advanceWorkflow", {
+  payload: EnterpriseAdvanceWorkflowInput,
+  success: EnterpriseAdvanceWorkflowResult,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseGateAndContinueRpc = Rpc.make("enterprise.gateAndContinue", {
+  payload: EnterpriseGateAndContinueInput,
+  success: EnterpriseGateAndContinueResult,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseCollectRoleArtifactRpc = Rpc.make("enterprise.collectRoleArtifact", {
+  payload: EnterpriseCollectRoleArtifactInput,
+  success: EnterpriseRoleArtifact,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseBuildPullRequestDraftRpc = Rpc.make("enterprise.buildPullRequestDraft", {
+  payload: EnterpriseBuildPullRequestDraftInput,
+  success: EnterprisePullRequestDraft,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseGateRoleRpc = Rpc.make("enterprise.gateRole", {
+  payload: EnterpriseGateRoleInput,
+  success: EnterpriseSnapshotGateResult,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseCollectHandoffRpc = Rpc.make("enterprise.collectHandoff", {
+  payload: EnterpriseCollectHandoffInput,
+  success: AgentHandoff,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseReleaseWorkspaceRpc = Rpc.make("enterprise.releaseWorkspace", {
+  payload: EnterpriseReleaseWorkspaceInput,
+  success: Schema.Void,
+  error: EnterpriseRoleError,
+});
+const WsEnterpriseLaunchRoleRpc = Rpc.make("enterprise.launchRole", {
+  payload: EnterpriseLaunchRoleInput,
+  success: EnterpriseLaunchRoleResult,
+  error: EnterpriseRoleError,
+});
+
 export const WsRpcGroup = RpcGroup.make(
+  WsEnterpriseStartIssueWorkflowRpc,
+  WsEnterprisePublishPullRequestRpc,
+  WsEnterpriseStartWorkflowRpc,
+  WsEnterpriseCancelWorkflowRpc,
+  WsEnterpriseStopWorkflowRpc,
+  WsEnterpriseGetWorkflowAutomationRpc,
+  WsEnterpriseAdvanceWorkflowRpc,
+  WsEnterpriseGateAndContinueRpc,
+  WsEnterpriseCollectRoleArtifactRpc,
+  WsEnterpriseBuildPullRequestDraftRpc,
+  WsEnterpriseGateRoleRpc,
+  WsEnterpriseCollectHandoffRpc,
+  WsEnterpriseLaunchRoleRpc,
+  WsEnterpriseReleaseWorkspaceRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,

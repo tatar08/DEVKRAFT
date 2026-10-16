@@ -208,6 +208,20 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
+  "enterprise.startIssueWorkflow": "enterprise",
+  "enterprise.publishPullRequest": "enterprise",
+  "enterprise.collectRoleArtifact": "enterprise",
+  "enterprise.buildPullRequestDraft": "enterprise",
+  "enterprise.startWorkflow": "enterprise",
+  "enterprise.stopWorkflow": "enterprise",
+  "enterprise.cancelWorkflow": "enterprise",
+  "enterprise.getWorkflowAutomation": "enterprise",
+  "enterprise.advanceWorkflow": "enterprise",
+  "enterprise.gateAndContinue": "enterprise",
+  "enterprise.gateRole": "enterprise",
+  "enterprise.collectHandoff": "enterprise",
+  "enterprise.launchRole": "enterprise",
+  "enterprise.releaseWorkspace": "enterprise",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

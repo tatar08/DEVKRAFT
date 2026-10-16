@@ -637,6 +637,129 @@ describe("CodexAdapterV2 runtime policy", () => {
 });
 
 describe("CodexAdapterV2 process spawning", () => {
+  it.effect(
+    "keeps named deny-by-default profiles instead of replacing them with legacy sandbox defaults",
+    () =>
+      Effect.gen(function* () {
+        const runtimePolicy = {
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          cwd: "/task/worktree",
+          disableT3Mcp: true,
+          filesystemAccess: "read",
+          readonlyToolchainRoots: ["/toolchain/codex"],
+          approvalPolicy: "never",
+        } as const;
+        const config = CodexAdapterV2.codexThreadRuntimeParams({
+          mcpSession: undefined,
+          runtimePolicy,
+        }).config;
+        assert.equal(config.default_permissions, "t3-enterprise");
+        assert.deepEqual(config.permissions, {
+          "t3-enterprise": {
+            filesystem: {
+              ":root": "deny",
+              ":minimal": "read",
+              "/toolchain/codex": "read",
+              "/task/worktree": "read",
+              "/task/worktree/.git": "deny",
+              "/task/worktree/.codex": "deny",
+              "/task/worktree/.agents": "deny",
+            },
+            network: { enabled: false },
+          },
+        });
+        assert.equal(config["shell_environment_policy.inherit"], "none");
+        for (const feature of ["apps", "plugins", "multi_agent", "hooks", "goals"])
+          assert.equal(config[`features.${feature}`], false);
+        const turn = yield* CodexAdapterV2.buildCodexTurnStartParams({
+          nativeThreadId: "native:test",
+          codexInput: [],
+          runtimePolicy,
+          modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.5" },
+        });
+        assert.equal(turn.sandboxPolicy, undefined);
+        assert.equal(turn.approvalPolicy, "never");
+      }),
+  );
+  it.effect(
+    "uses a loopback Ollama Responses backend without relaxing enterprise permissions",
+    () =>
+      Effect.gen(function* () {
+        const runtimePolicy = {
+          runtimeMode: "approval-required",
+          interactionMode: "default",
+          cwd: "/task/worktree",
+          filesystemAccess: "write",
+          disableT3Mcp: true,
+          approvalPolicy: "never",
+        } as const;
+        const modelSelection = {
+          instanceId: ProviderInstanceId.make("codex"),
+          model: "ollama/qwen3-coder:30b",
+        };
+        const params = CodexAdapterV2.codexThreadRuntimeParams({
+          runtimePolicy,
+          modelSelection,
+          mcpSession: undefined,
+        });
+        assert.equal(params.modelProvider, "t3-ollama");
+        assert.equal(params.model, "qwen3-coder:30b");
+        assert.equal(params.config.default_permissions, "t3-enterprise");
+        assert.equal(params.config.web_search, "disabled");
+        assert.deepEqual(params.config["model_providers.t3-ollama"], {
+          name: "Local Ollama",
+          base_url: "http://127.0.0.1:11434/v1",
+          wire_api: "responses",
+          requires_openai_auth: false,
+          supports_websockets: false,
+          request_max_retries: 0,
+          stream_max_retries: 0,
+        });
+        const turn = yield* CodexAdapterV2.buildCodexTurnStartParams({
+          nativeThreadId: "native:test",
+          codexInput: [],
+          runtimePolicy,
+          modelSelection,
+        });
+        assert.equal(turn.model, "qwen3-coder:30b");
+        assert.equal(turn.summary, undefined);
+        assert.equal(turn.effort, undefined);
+        assert.equal(turn.serviceTier, undefined);
+        assert.equal(turn.sandboxPolicy, undefined);
+      }),
+  );
+  it("keeps ordinary Codex model names unchanged outside enterprise profiles", () => {
+    const params = CodexAdapterV2.codexThreadRuntimeParams({
+      mcpSession: undefined,
+      modelSelection: { model: "ollama/custom" },
+    });
+    assert.equal(params.model, "ollama/custom");
+    assert.equal(params.modelProvider, undefined);
+    assert.equal(params.config.model_provider, undefined);
+  });
+  it("does not expose T3 MCP credentials when the runtime policy disables agent tools", () => {
+    const params = CodexAdapterV2.codexThreadRuntimeParams({
+      runtimePolicy: {
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        cwd: "/task/worktree",
+        disableT3Mcp: true,
+      },
+      mcpSession: {
+        environmentId: EnvironmentId.make("env:test"),
+        threadId: ThreadId.make("thread:test"),
+        providerSessionId: "mcp:test",
+        providerInstanceId: ProviderInstanceId.make("codex"),
+        endpoint: "http://127.0.0.1/mcp",
+        authorizationHeader: "Bearer synthetic-secret",
+        browserToolsAvailable: false,
+      },
+    });
+    assert.deepEqual(params.config.mcp_servers, {
+      "t3-code": { enabled: false, command: "/usr/bin/false", args: [] },
+    });
+  });
   it("injects cwd, model, and MCP authorization into thread-scoped params", () => {
     const threadId = ThreadId.make("thread-codex-mcp");
     const mcpSession = {
@@ -9140,4 +9263,16 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       ),
     );
   });
+});
+
+it("preserves actionable HTTP status for enterprise failover without changing legacy failure codes", () => {
+  for (const status of [429, 503, 529]) {
+    const error = { httpConnectionFailed: { httpStatusCode: status } };
+    assert.equal(CodexAdapterV2.codexErrorInfoCode(error), "httpConnectionFailed");
+    assert.equal(CodexAdapterV2.codexErrorInfoCode(error, true), `http_${status}`);
+  }
+  assert.equal(
+    CodexAdapterV2.codexErrorInfoCode({ httpConnectionFailed: { httpStatusCode: 401 } }, true),
+    "httpConnectionFailed",
+  );
 });

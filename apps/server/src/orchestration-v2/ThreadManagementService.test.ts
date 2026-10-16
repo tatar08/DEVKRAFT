@@ -35,6 +35,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as CommandReceiptStore from "./CommandReceiptStore.ts";
 import * as Orchestrator from "./Orchestrator.ts";
+import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
@@ -506,6 +507,35 @@ it.effect("classifies projection infrastructure failures separately from a missi
       cause: projectionError,
     });
     expect(error.message).toBe(`Unable to load thread ${threadId} in project ${projectId}.`);
+  }).pipe(Effect.provide(layerTest));
+});
+
+it.effect("reports a thread that was never created as not found", () => {
+  const projectId = ProjectId.make("project:thread-management:never-created");
+  const threadId = ThreadId.make("thread:thread-management:never-created");
+  const layerTest = ThreadManagementService.layer.pipe(
+    Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
+    Layer.provide(
+      Layer.mock(Orchestrator.OrchestratorV2)({
+        getThreadProjection: () =>
+          Effect.fail(
+            new Orchestrator.OrchestratorProjectionError({
+              threadId,
+              cause: new ProjectionStore.ProjectionStoreThreadNotFoundError({ threadId }),
+            }),
+          ),
+      }),
+    ),
+    Layer.provide(ServerSettings.layerTest()),
+    Layer.provide(layerReceiptsTest),
+  );
+
+  return Effect.gen(function* () {
+    const service = yield* ThreadManagementService.ThreadManagementService;
+    const error = yield* Effect.flip(service.getProjectThread({ projectId, threadId }));
+
+    expect(error).toBeInstanceOf(ThreadManagementService.ThreadManagementThreadNotFoundError);
+    expect(error).toMatchObject({ projectId, threadId });
   }).pipe(Effect.provide(layerTest));
 });
 

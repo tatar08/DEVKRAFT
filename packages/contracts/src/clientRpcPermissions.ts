@@ -2,6 +2,7 @@ import * as Schema from "effect/Schema";
 import { GitPreparePullRequestThreadInput } from "./git.ts";
 import {
   AuthOrchestrationOperateScope,
+  AuthFilesystemWriteScope,
   AuthSettingsWriteScope,
   AuthSourceControlWriteScope,
   type AuthEnvironmentScope,
@@ -11,6 +12,20 @@ import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
+  "enterprise.startIssueWorkflow": AuthOrchestrationOperateScope,
+  "enterprise.publishPullRequest": AuthSourceControlWriteScope,
+  "enterprise.collectRoleArtifact": AuthOrchestrationOperateScope,
+  "enterprise.buildPullRequestDraft": AuthOrchestrationOperateScope,
+  "enterprise.startWorkflow": AuthOrchestrationOperateScope,
+  "enterprise.stopWorkflow": AuthOrchestrationOperateScope,
+  "enterprise.cancelWorkflow": AuthOrchestrationOperateScope,
+  "enterprise.getWorkflowAutomation": AuthOrchestrationOperateScope,
+  "enterprise.advanceWorkflow": AuthOrchestrationOperateScope,
+  "enterprise.gateAndContinue": AuthOrchestrationOperateScope,
+  "enterprise.gateRole": AuthOrchestrationOperateScope,
+  "enterprise.collectHandoff": AuthOrchestrationOperateScope,
+  "enterprise.launchRole": AuthOrchestrationOperateScope,
+  "enterprise.releaseWorkspace": AuthOrchestrationOperateScope,
   [WS_METHODS.serverRunStorageCleanup]: AuthSettingsWriteScope,
   // Endpoint checks exist to configure exports, so they need the same grant as saving them.
   [WS_METHODS.serverCheckOtlpEndpoint]: AuthSettingsWriteScope,
@@ -56,6 +71,23 @@ export function clientRpcRequiredScopes(
   method: string,
   input: unknown,
 ): readonly AuthEnvironmentScope[] {
+  if (
+    method === "enterprise.startIssueWorkflow" ||
+    method === "enterprise.publishPullRequest" ||
+    method === "enterprise.collectRoleArtifact" ||
+    method === "enterprise.buildPullRequestDraft" ||
+    method === "enterprise.startWorkflow" ||
+    method === "enterprise.stopWorkflow" ||
+    method === "enterprise.cancelWorkflow" ||
+    method === "enterprise.getWorkflowAutomation" ||
+    method === "enterprise.advanceWorkflow" ||
+    method === "enterprise.gateAndContinue" ||
+    method === "enterprise.gateRole" ||
+    method === "enterprise.collectHandoff" ||
+    method === "enterprise.launchRole" ||
+    method === "enterprise.releaseWorkspace"
+  )
+    return [AuthOrchestrationOperateScope, AuthFilesystemWriteScope, AuthSourceControlWriteScope];
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {
     const payload = decodePrepareThread(input);
     if (payload.mode === "worktree" && payload.threadId !== undefined)

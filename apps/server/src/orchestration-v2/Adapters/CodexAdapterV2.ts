@@ -1,3 +1,4 @@
+import { ENTERPRISE_CODEX_STARTUP_ARGS } from "../../enterprise/EnterpriseCodexSupport.ts";
 import { revertCodexThread } from "../../provider/CodexThreadRevert.ts";
 import { historyResponseItems } from "@t3tools/provider-core/server/handoffBudget";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
@@ -716,15 +717,24 @@ export function buildCodexTurnStartParams(input: {
   readonly appContext?: ProviderAdapter.ProviderAdapterV2TurnInput["appContext"];
 }) {
   return Effect.gen(function* () {
+    const localModel =
+      input.runtimePolicy.filesystemAccess !== undefined &&
+      input.modelSelection.model.startsWith("ollama/");
+    const nativeModel = localModel
+      ? input.modelSelection.model.slice(7)
+      : input.modelSelection.model;
     const runtimeModeDefaults = codexRuntimeModeTurnDefaults(input.runtimePolicy.runtimeMode);
     const approvalPolicy =
       input.runtimePolicy.approvalPolicy === undefined
         ? runtimeModeDefaults.approvalPolicy
         : yield* decodeTurnApprovalPolicy(input.runtimePolicy.approvalPolicy);
+    // A legacy sandbox override would replace the named deny-read profile.
     const sandboxPolicy =
-      input.runtimePolicy.sandboxPolicy === undefined
-        ? runtimeModeDefaults.sandboxPolicy
-        : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy);
+      input.runtimePolicy.filesystemAccess !== undefined
+        ? undefined
+        : input.runtimePolicy.sandboxPolicy === undefined
+          ? runtimeModeDefaults.sandboxPolicy
+          : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy);
     const selectedEffort = getModelSelectionStringOptionValue(
       input.modelSelection,
       "reasoningEffort",
@@ -751,7 +761,7 @@ export function buildCodexTurnStartParams(input: {
     const t3Context =
       input.hasT3Mcp === true
         ? buildCodexAdditionalContext(
-            { model: input.modelSelection.model, reasoningEffort: effort ?? "medium" },
+            { model: nativeModel, reasoningEffort: effort ?? "medium" },
             {
               browser: input.browserToolsAvailable ?? true,
               device: input.deviceToolsAvailable ?? false,
@@ -768,7 +778,7 @@ export function buildCodexTurnStartParams(input: {
         : {
             mode: input.runtimePolicy.interactionMode === "plan" ? "plan" : "default",
             settings: {
-              model: input.modelSelection.model,
+              model: nativeModel,
               reasoning_effort: effort ?? "medium",
               ...(developerInstructions === undefined
                 ? {}
@@ -781,17 +791,17 @@ export function buildCodexTurnStartParams(input: {
       input: input.codexInput,
       ...(additionalContext ? { additionalContext } : {}),
       cwd: input.runtimePolicy.cwd,
-      model: input.modelSelection.model,
+      model: nativeModel,
       // Model catalogues can default summaries to "none". Request them on every
       // turn, including resumed threads, for T3's reasoning timeline.
-      summary: "detailed",
+      ...(localModel ? {} : { summary: "detailed" }),
       // Always explicit: omitting this on resume leaves Codex's previous
       // reviewer sticky after switching away from Auto mode.
       approvalsReviewer: runtimeModeDefaults.approvalsReviewer,
       ...(approvalPolicy === undefined ? {} : { approvalPolicy }),
       ...(sandboxPolicy === undefined ? {} : { sandboxPolicy }),
-      ...(effort === undefined ? {} : { effort }),
-      ...(serviceTier === undefined ? {} : { serviceTier }),
+      ...(localModel || effort === undefined ? {} : { effort }),
+      ...(localModel || serviceTier === undefined ? {} : { serviceTier }),
       ...(collaborationMode === undefined ? {} : { collaborationMode }),
     });
   });
@@ -1094,14 +1104,25 @@ function parseCodexRetryProgress(
   return { attempt, maxAttempts };
 }
 
-function codexErrorInfoCode(value: unknown): string | null {
+export function codexErrorInfoCode(value: unknown, preserveHttpStatus = false): string | null {
   if (typeof value === "string") {
     return value;
   }
   if (typeof value !== "object" || value === null) {
     return null;
   }
-  return Object.keys(value)[0] ?? null;
+  const code = Object.keys(value)[0];
+  const details = code === undefined ? undefined : (value as Record<string, unknown>)[code];
+  if (
+    preserveHttpStatus &&
+    typeof details === "object" &&
+    details !== null &&
+    "httpStatusCode" in details
+  ) {
+    const status = details.httpStatusCode;
+    if (status === 429 || status === 503 || status === 529) return `http_${status}`;
+  }
+  return code ?? null;
 }
 
 interface ActiveCodexTurnContext {
@@ -1307,14 +1328,81 @@ export function codexThreadRuntimeParams(input: {
 }): {
   readonly cwd?: string;
   readonly model?: string;
+  readonly modelProvider?: string;
   readonly config: Readonly<Record<string, Schema.Json>>;
 } {
-  const { mcpSession } = input;
+  const localModel =
+    input.runtimePolicy?.filesystemAccess !== undefined &&
+    input.modelSelection?.model.startsWith("ollama/") === true;
+  const mcpSession = input.runtimePolicy?.disableT3Mcp ? undefined : input.mcpSession;
+  const disabledMcpConfig: Readonly<Record<string, Schema.Json>> = input.runtimePolicy?.disableT3Mcp
+    ? {
+        mcp_servers: Object.fromEntries(
+          (input.runtimePolicy.disabledMcpServerNames ?? ["t3-code"]).map((name) => [
+            name,
+            { enabled: false, command: "/usr/bin/false", args: [] },
+          ]),
+        ),
+      }
+    : {};
+  const access = input.runtimePolicy?.filesystemAccess;
+  const enterpriseConfig: Readonly<Record<string, Schema.Json>> =
+    access === undefined || input.runtimePolicy?.cwd == null
+      ? {}
+      : {
+          default_permissions: "t3-enterprise",
+          projects: { [input.runtimePolicy.cwd]: { trust_level: "untrusted" } },
+          permissions: {
+            "t3-enterprise": {
+              filesystem: {
+                ":root": "deny",
+                ":minimal": "read",
+                ...Object.fromEntries(
+                  (input.runtimePolicy.readonlyToolchainRoots ?? []).map((root) => [root, "read"]),
+                ),
+                [input.runtimePolicy.cwd]: access,
+                [`${input.runtimePolicy.cwd}/.git`]: "deny",
+                [`${input.runtimePolicy.cwd}/.codex`]: "deny",
+                [`${input.runtimePolicy.cwd}/.agents`]: "deny",
+              },
+              network: { enabled: false },
+            },
+          },
+          "shell_environment_policy.inherit": "none",
+          "shell_environment_policy.set": { PATH: "/usr/bin:/bin" },
+          web_search: "disabled",
+          "features.apps": false,
+          "features.plugins": false,
+          "features.multi_agent": false,
+          "features.hooks": false,
+          "features.goals": false,
+        };
   return {
     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
-    ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
+    ...(input.modelSelection === undefined
+      ? {}
+      : {
+          model: localModel ? input.modelSelection.model.slice(7) : input.modelSelection.model,
+        }),
+    ...(localModel ? { modelProvider: "t3-ollama" } : {}),
     config: {
       ...CODEX_THREAD_CONFIG,
+      ...(localModel
+        ? {
+            model_provider: "t3-ollama",
+            "model_providers.t3-ollama": {
+              name: "Local Ollama",
+              base_url: "http://127.0.0.1:11434/v1",
+              wire_api: "responses",
+              requires_openai_auth: false,
+              supports_websockets: false,
+              request_max_retries: 0,
+              stream_max_retries: 0,
+            },
+          }
+        : {}),
+      ...enterpriseConfig,
+      ...disabledMcpConfig,
       ...(mcpSession === undefined
         ? {}
         : {
@@ -1519,9 +1607,14 @@ export const layerAppServerClientFactory: Layer.Layer<
           };
           const command = yield* makeCodexAppServerSpawnCommand({
             command: input.settings.binaryPath || "codex",
-            args: codexAppServerArgs(
-              resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
-            ),
+            args: [
+              ...codexAppServerArgs(
+                resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
+              ),
+              ...(input.runtimePolicy.filesystemAccess === undefined
+                ? []
+                : ENTERPRISE_CODEX_STARTUP_ARGS),
+            ],
             env: environment,
             threadId: input.threadId,
           }).pipe(Effect.provideService(AgentScope, agentScope));
@@ -4491,13 +4584,19 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             if (context === undefined) {
               return;
             }
-            const notificationCode = codexErrorInfoCode(payload.error.codexErrorInfo);
+            const notificationCode = codexErrorInfoCode(
+              payload.error.codexErrorInfo,
+              context.input.runtimePolicy.filesystemAccess !== undefined,
+            );
             if (!payload.willRetry) {
               context.latestProviderFailure = {
                 nativeMessage: payload.error.message,
                 failure: makeProviderFailure({
                   message: payload.error.additionalDetails?.trim() || payload.error.message,
                   code: notificationCode,
+                  ...(/^http_(?:429|503|529)$/.test(notificationCode ?? "")
+                    ? { retryable: true }
+                    : {}),
                   class:
                     notificationCode === "usageLimitExceeded" ||
                     notificationCode === "rateLimitExceeded"
@@ -4515,7 +4614,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               maxAttempts: progress?.maxAttempts ?? previous?.retry.maxAttempts ?? null,
               retryDelayMs: null,
             };
-            const code = codexErrorInfoCode(payload.error.codexErrorInfo);
+            const code = codexErrorInfoCode(
+              payload.error.codexErrorInfo,
+              context.input.runtimePolicy.filesystemAccess !== undefined,
+            );
             const additionalDetails = payload.error.additionalDetails?.trim();
             const failure = makeProviderFailure({
               message:
@@ -5519,6 +5621,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   : makeProviderFailure({
                       message: input.failureMessage,
                       code: input.failureCode,
+                      ...(/^http_(?:429|503|529)$/.test(input.failureCode ?? "")
+                        ? { retryable: true }
+                        : {}),
                       class:
                         input.failureCode === "usageLimitExceeded" ||
                         input.failureCode === "rateLimitExceeded"
@@ -5996,7 +6101,10 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     ...(payload.turn.error.codexErrorInfo == null
                       ? {}
                       : {
-                          failureCode: codexErrorInfoCode(payload.turn.error.codexErrorInfo),
+                          failureCode: codexErrorInfoCode(
+                            payload.turn.error.codexErrorInfo,
+                            context.input.runtimePolicy.filesystemAccess !== undefined,
+                          ),
                         }),
                   }),
             });
@@ -6185,7 +6293,9 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         ) =>
           Effect.gen(function* () {
             const threadId = yield* getNativeThreadId(turnInput.providerThread);
-            const mcpSession = yield* mcpSessions.read(turnInput.threadId);
+            const mcpSession = turnInput.runtimePolicy.disableT3Mcp
+              ? undefined
+              : yield* mcpSessions.read(turnInput.threadId);
             const turnStartParams = yield* buildCodexTurnStartParams({
               nativeThreadId: threadId,
               codexInput,

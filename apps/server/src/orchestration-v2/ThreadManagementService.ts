@@ -657,16 +657,24 @@ const make = Effect.gen(function* () {
       Effect.andThen(orchestrator.dispatch(command)),
     );
 
+  /** A thread that was never created is "not found", not a projection failure; callers rely on this to start new work. */
+  const mapProjectionLoadError = (
+    input: { readonly projectId: ProjectId; readonly threadId: ThreadId },
+    cause: unknown,
+  ) =>
+    typeof cause === "object" &&
+    cause !== null &&
+    "cause" in cause &&
+    typeof cause.cause === "object" &&
+    cause.cause !== null &&
+    "_tag" in cause.cause &&
+    cause.cause._tag === "ProjectionStoreThreadNotFoundError"
+      ? new ThreadManagementThreadNotFoundError(input)
+      : new ThreadManagementProjectionLoadError({ ...input, cause });
+
   const getProjectThread: ThreadManagementServiceShape["getProjectThread"] = (input) =>
     getThreadProjection(input.threadId).pipe(
-      Effect.mapError(
-        (cause) =>
-          new ThreadManagementProjectionLoadError({
-            projectId: input.projectId,
-            threadId: input.threadId,
-            cause,
-          }),
-      ),
+      Effect.mapError((cause) => mapProjectionLoadError(input, cause)),
       Effect.flatMap((projection) =>
         projection.thread.projectId === input.projectId && projection.thread.deletedAt === null
           ? Effect.succeed(projection)
@@ -687,14 +695,7 @@ const make = Effect.gen(function* () {
     ensureProjectionTranscript(input.threadId)
       .pipe(Effect.andThen(orchestrator.getThreadRecords(input.threadId, fields, filter)))
       .pipe(
-        Effect.mapError(
-          (cause) =>
-            new ThreadManagementProjectionLoadError({
-              projectId: input.projectId,
-              threadId: input.threadId,
-              cause,
-            }),
-        ),
+        Effect.mapError((cause) => mapProjectionLoadError(input, cause)),
         Effect.flatMap((projection) =>
           projection.thread.projectId === input.projectId && projection.thread.deletedAt === null
             ? Effect.succeed(projection)

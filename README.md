@@ -139,3 +139,52 @@ Read [CONTRIBUTING.md](./CONTRIBUTING.md) before reporting a bug or opening a PR
 Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
 
 Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
+
+Note: 1. สตาร์ต Server ขึ้นมาก่อน
+เปิด Terminal ในโฟลเดอร์นี้แล้วรันคำสั่ง:
+
+bash
+npx t3 serve --base-dir .t3-data
+(เซิร์ฟเวอร์จะเริ่มทำงานและเปิดพอร์ต 3700)
+
+2. สร้าง Pairing Link ผ่าน Terminal
+   เปิด Terminal อีกหน้าต่างหนึ่ง (ในโฟลเดอร์เดียวกัน) แล้วรัน:
+
+bash
+npx t3 pair --base-dir .t3-data
+ระบบจะแสดง Pairing URL (และ QR Code) ออกมาในหน้า Terminal
+
+3. ให้สิทธิ์เบราว์เซอร์
+   คัดลอก Pairing URL ที่ได้จากขั้นตอนที่ 2 มาวางแล้วเปิดใน Google Chrome
+   เบราว์เซอร์นี้จะได้รับการยืนยันเป็น Authorized Client ทันที
+4. กลับไปเปิด Device Hub
+   เมื่อ Pair เรียบร้อยแล้ว ให้ไปที่:
+
+Settings → Integrations → ส่วน Devices
+
+สวิตช์ Device hub และ Agent device access จะปลดล็อกให้กดเปิดใช้งานได้ทันทีครับ
+
+วิธีที่ 1: รัน T3 Code Web สำเร็จรูป (วิธีปกติ - พอร์ต 3700)
+วิธีนี้ไม่ต้องติดตั้ง dependency เพิ่ม สามารถรันคำสั่งนี้ใน Terminal ได้ทันที:
+
+bash
+npx t3 --base-dir .t3-data
+เซิร์ฟเวอร์จะเปิดพอร์ต 3700
+เปิดหน้าเว็บ http://localhost:3700 ให้อัตโนมัติ
+จะล็อกอินและให้สิทธิ์ Authorized Client ให้กับเบราว์เซอร์อัตโนมัติ ทำให้เปิดใช้งาน Device Hub ได้ทันที
+วิธีที่ 2: รันโหมด Develop (กรณีต้องการแก้ไข Source Code ของเว็บ)
+หากต้องการรันด้วย pnpm dev เพื่อแก้โค้ดในโฟลเดอร์ t3code-upstream ต้องสลับเข้าไปในโฟลเดอร์ของโปรเจกต์ก่อนครับ:
+
+bash
+
+# 1. เข้าไปที่โฟลเดอร์ซอร์สโค้ด
+
+cd /home/tar-ai-lab/Projects/t3code/t3code-upstream
+
+# 2. ติดตั้ง dependencies ก่อน (ทำแค่ครั้งแรก)
+
+pnpm install
+
+# 3. รันเซิร์ฟเวอร์โหมด Development
+
+pnpm dev
