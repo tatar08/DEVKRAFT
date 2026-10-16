@@ -105,7 +105,9 @@ Contracts, isolation, approvals, recovery
 
 - Tenant boundary ระดับ environment ([ADR-003](./internals/enterprise-boundaries.md#adr-003-environment-level-tenant-boundary))
 
-ยังค้าง (ดู [handoff](./internals/enterprise-handoff.md)): แยก `EnterpriseWorkspaceService.mutate` (~600 บรรทัด) และ `EnterpriseRoleService`, JSDoc ในส่วน implementation, การผูก tenant กับ session, live remote acceptance และ Phase 4 drills
+- แยก `EnterpriseRoleService` เป็น Model/Context/Evidence/Retry (service เหลือ 284 บรรทัด, behavior และ tests เดิมไม่เปลี่ยน)
+
+ยังค้าง (ดู [handoff](./internals/enterprise-handoff.md)): แยก `EnterpriseWorkspaceService.mutate` (~600 บรรทัด), JSDoc ในส่วน implementation, การผูก tenant กับ session, live remote acceptance และ Phase 4 drills
 
 ### 📋 Phase 0: Technical Audit & Architecture Decisions (Weeks 1–2) — 100% (8/8 verified)
 

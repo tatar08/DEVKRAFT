@@ -19,7 +19,7 @@ The baseline commit `c9d456ad42` is the previously uncommitted Codex/Gemini work
 | 5   | The 14 RPC names were copied 3×, `"ollama/"` + `slice(7)` 15×, the thread-ID template 4×, and error mapping roughly 7×.                                                            | Fixed: `ENTERPRISE_WS_METHODS`, `CodexNamedProfile.ts`, `EnterpriseRun.ts`  |
 | 6   | Duck typing on `unknown` in `ThreadManagementService`.                                                                                                                             | Fixed: `Predicate` (same idiom as `orchestration-v2/http.ts`)               |
 | 7   | `.t3-data/` (1.9 GB user data) sat untracked in the repo.                                                                                                                          | Fixed: added to `.gitignore`                                                |
-| 8   | God functions: `EnterpriseWorkspaceService.mutate` (~600 lines) and `EnterpriseRoleService` (~880 lines).                                                                          | **Open → tasks C1 and G1**                                                  |
+| 8   | God functions: `EnterpriseWorkspaceService.mutate` (~600 lines) and `EnterpriseRoleService` (~880 lines). RoleService was split in G1 (284 lines).                                 | **Open → C1** (G1 done)                                                     |
 | 9   | Implementation-level JSDoc and rationale comments are missing. Public interfaces now have JSDoc.                                                                                   | **Open → part of C1/G1**                                                    |
 | 10  | `tenantId` was not an authorization boundary.                                                                                                                                      | Fixed: ADR-003 environment-level allowlist (`EnterpriseTenancy`)            |
 
@@ -94,7 +94,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
 
 **Done when:** the new tests pass with no sleeps or polling (use deterministic fakes for `gh`), the existing tests pass, and the code behaves exactly as before.
 
-### Gemini — G1: split `EnterpriseRoleService` (priority: high)
+### Gemini — G1: split `EnterpriseRoleService` — ✅ done by the supervisor (commit `189234a407`)
 
 **Files you may edit:**
 
