@@ -107,7 +107,9 @@ Contracts, isolation, approvals, recovery
 
 - แยก `EnterpriseRoleService` เป็น Model/Context/Evidence/Retry (service เหลือ 284 บรรทัด, behavior และ tests เดิมไม่เปลี่ยน)
 
-ยังค้าง (ดู [handoff](./internals/enterprise-handoff.md)): แยก `EnterpriseWorkspaceService.mutate` (~600 บรรทัด), JSDoc ในส่วน implementation, การผูก tenant กับ session, live remote acceptance และ Phase 4 drills
+- แยก `EnterpriseWorkspaceService.mutate` เป็น `withOwnership` + ฟังก์ชันต่อ operation (service 1044 → 284 บรรทัด; Codex ทำ, supervisor ตรวจและ merge)
+
+ยังค้าง (ดู [handoff](./internals/enterprise-handoff.md)): JSDoc ในส่วน implementation, การผูก tenant กับ session, live remote acceptance และ Phase 4 drills
 
 ### 📋 Phase 0: Technical Audit & Architecture Decisions (Weeks 1–2) — 100% (8/8 verified)
 

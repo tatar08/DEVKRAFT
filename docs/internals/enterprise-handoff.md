@@ -10,18 +10,18 @@
 
 The baseline commit `c9d456ad42` is the previously uncommitted Codex/Gemini work. Focused tests, typecheck and lint passed, but the review found these problems. Do not re-introduce any of them.
 
-| #   | Finding                                                                                                                                                                            | Status                                                                      |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| 1   | `publishPullRequest` called `workflow.advance()`, so a publish could launch, retry or stop provider work and re-run corrections. Workflow errors were reported as `remote_failed`. | Fixed: `EnterpriseWorkflowService.verify` (read-only)                       |
-| 2   | Right after `gh pr create`, a lagging GitHub listing produced `publication_unknown`. The receipt flag was always `true`. The PR title used `slice(14, 26)`.                        | Fixed                                                                       |
-| 3   | `RuntimePolicy.resolve` spawned `codex --version` and `codex mcp list` on every resolve.                                                                                           | Fixed: shared probe in `EnterpriseCodexSupport.ts`, success cached 1 minute |
-| 4   | Core `orchestration-v2` imported `enterprise/`, and the role-thread regex was hard-coded in core.                                                                                  | Fixed: `RuntimePolicyRefinement` hook + `enterprise/runtimeLayer.ts`        |
-| 5   | The 14 RPC names were copied 3×, `"ollama/"` + `slice(7)` 15×, the thread-ID template 4×, and error mapping roughly 7×.                                                            | Fixed: `ENTERPRISE_WS_METHODS`, `CodexNamedProfile.ts`, `EnterpriseRun.ts`  |
-| 6   | Duck typing on `unknown` in `ThreadManagementService`.                                                                                                                             | Fixed: `Predicate` (same idiom as `orchestration-v2/http.ts`)               |
-| 7   | `.t3-data/` (1.9 GB user data) sat untracked in the repo.                                                                                                                          | Fixed: added to `.gitignore`                                                |
-| 8   | God functions: `EnterpriseWorkspaceService.mutate` (~600 lines) and `EnterpriseRoleService` (~880 lines). RoleService was split in G1 (284 lines).                                 | **Open → C1** (G1 done)                                                     |
-| 9   | Implementation-level JSDoc and rationale comments are missing. Public interfaces now have JSDoc.                                                                                   | **Open → part of C1/G1**                                                    |
-| 10  | `tenantId` was not an authorization boundary.                                                                                                                                      | Fixed: ADR-003 environment-level allowlist (`EnterpriseTenancy`)            |
+| #   | Finding                                                                                                                                                                                       | Status                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | `publishPullRequest` called `workflow.advance()`, so a publish could launch, retry or stop provider work and re-run corrections. Workflow errors were reported as `remote_failed`.            | Fixed: `EnterpriseWorkflowService.verify` (read-only)                       |
+| 2   | Right after `gh pr create`, a lagging GitHub listing produced `publication_unknown`. The receipt flag was always `true`. The PR title used `slice(14, 26)`.                                   | Fixed                                                                       |
+| 3   | `RuntimePolicy.resolve` spawned `codex --version` and `codex mcp list` on every resolve.                                                                                                      | Fixed: shared probe in `EnterpriseCodexSupport.ts`, success cached 1 minute |
+| 4   | Core `orchestration-v2` imported `enterprise/`, and the role-thread regex was hard-coded in core.                                                                                             | Fixed: `RuntimePolicyRefinement` hook + `enterprise/runtimeLayer.ts`        |
+| 5   | The 14 RPC names were copied 3×, `"ollama/"` + `slice(7)` 15×, the thread-ID template 4×, and error mapping roughly 7×.                                                                       | Fixed: `ENTERPRISE_WS_METHODS`, `CodexNamedProfile.ts`, `EnterpriseRun.ts`  |
+| 6   | Duck typing on `unknown` in `ThreadManagementService`.                                                                                                                                        | Fixed: `Predicate` (same idiom as `orchestration-v2/http.ts`)               |
+| 7   | `.t3-data/` (1.9 GB user data) sat untracked in the repo.                                                                                                                                     | Fixed: added to `.gitignore`                                                |
+| 8   | God functions: `EnterpriseWorkspaceService.mutate` (~600 lines) and `EnterpriseRoleService` (~880 lines). RoleService was split in G1 (284 lines); WorkspaceService in C1 (1044 → 284 lines). | Fixed (G1, C1)                                                              |
+| 9   | Implementation-level JSDoc and rationale comments are missing. Public interfaces now have JSDoc.                                                                                              | **Open → part of C1/G1**                                                    |
+| 10  | `tenantId` was not an authorization boundary.                                                                                                                                                 | Fixed: ADR-003 environment-level allowlist (`EnterpriseTenancy`)            |
 
 Checked and found not to be a problem: Node runs inside the real sandbox under `prlimit --as=2GiB`. Probing `codex` from PATH is correct, because `isDefaultEnterpriseCodexConfig` requires `binaryPath === "codex"`.
 
@@ -43,7 +43,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
    - Name magic numbers.
 6. **Verify (smallest proof, as `AGENTS.md` requires).** Run from the repo root:
    ```bash
-   npx vp test run apps/server/src/enterprise apps/server/src/cli/enterprise.test.ts packages/contracts/src/enterprise.test.ts apps/server/src/auth/RpcAuthorization.test.ts apps/server/src/orchestration-v2/RuntimePolicy.test.ts
+   npx vp test run apps/server/src/enterprise apps/server/src/cli/enterprise.test.ts packages/contracts/src/enterprise.test.ts apps/server/src/auth/RpcAuthorization.test.ts apps/server/src/orchestration-v2/RuntimePolicy.test.ts apps/server/src/orchestration-v2/ThreadManagementService.test.ts apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts apps/server/src/orchestration-v2/Adapters/GrokAdapterV2.test.ts
    ```
    ```bash
    cd apps/server && npx tsc-rs --noEmit
@@ -58,7 +58,7 @@ Checked and found not to be a problem: Node runs inside the real sandbox under `
 
 ## 3. Assignments
 
-### Codex — C1: split `EnterpriseWorkspaceService.mutate` (priority: high)
+### Codex — C1: split `EnterpriseWorkspaceService.mutate` — ✅ done by Codex, reviewed and merged (commit `2a03a662cc`)
 
 **Files you may edit:**
 
