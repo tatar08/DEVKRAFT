@@ -1,15 +1,4 @@
-import * as EnterpriseIssueWorkflows from "../enterprise/EnterpriseIssueWorkflowService.ts";
-import * as EnterpriseIssues from "../enterprise/EnterpriseIssueService.ts";
-import * as EnterpriseGit from "../vcs/GitVcsDriver.ts";
-import * as EnterprisePublication from "../enterprise/EnterprisePublicationService.ts";
-import * as EnterpriseProcessRunner from "../processRunner.ts";
-import * as EnterpriseAutomation from "../enterprise/EnterpriseWorkflowAutomation.ts";
-import * as AuthSessions from "../persistence/AuthSessions.ts";
-import * as EnterprisePricing from "../enterprise/EnterprisePricing.ts";
-import * as EnterpriseWorkflows from "../enterprise/EnterpriseWorkflowService.ts";
-import * as EnterpriseRoles from "../enterprise/EnterpriseRoleService.ts";
-import * as EnterpriseWorkspace from "../enterprise/EnterpriseWorkspaceService.ts";
-import * as EnterpriseRuntimePolicy from "../enterprise/EnterpriseRuntimePolicy.ts";
+import * as Enterprise from "../enterprise/runtimeLayer.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as Layer from "effect/Layer";
@@ -71,8 +60,8 @@ export const layerEventInfrastructure = Layer.mergeAll(
 );
 
 const layerRuntimePolicyProvided = RuntimePolicy.layerFromProjectStore.pipe(
-  // Enterprise owns role-thread policy through the core refinement hook, not core imports.
-  Layer.provide(EnterpriseRuntimePolicy.layer.pipe(Layer.provide(EnterpriseProcessRunner.layer))),
+  // Enterprise owns role-thread policy through the core refinement hook.
+  Layer.provide(Enterprise.layerRuntimePolicy),
   Layer.provide(ProjectStore.layer),
 );
 
@@ -362,69 +351,13 @@ export const layer = Layer.mergeAll(
   layerLegacyV1ThreadImporterProvided,
 );
 
-const layerEnterpriseRolesProvided = EnterpriseRoles.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      EnterprisePricing.layer,
-      layerThreadLaunchProvided,
-      layerThreadManagementProvided,
-      ProjectStore.layer,
-      EnterpriseWorkspace.layer,
-      EnterpriseProcessRunner.layer,
-    ),
-  ),
-);
-
-const layerEnterpriseWorkflowsProvided = EnterpriseWorkflows.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      EnterprisePricing.layer,
-      layerEnterpriseRolesProvided,
-      layerThreadManagementProvided,
-      ProjectStore.layer,
-      EnterpriseWorkspace.layer,
-    ),
-  ),
-);
-
-const layerEnterpriseAutomationProvided = EnterpriseAutomation.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerEnterpriseWorkflowsProvided,
-      layerThreadManagementProvided,
-      EnterpriseWorkspace.layer,
-      AuthSessions.layer,
-    ),
-  ),
-);
-
-const layerEnterprisePublicationProvided = EnterprisePublication.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerEnterpriseWorkflowsProvided,
-      EnterpriseWorkspace.layer,
-      EnterpriseProcessRunner.layer,
-    ),
-  ),
-  Layer.provide(EnterpriseGit.layer),
-);
-
-const layerEnterpriseIssueWorkflowProvided = EnterpriseIssueWorkflows.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerEnterpriseAutomationProvided,
-      EnterpriseIssues.layer.pipe(Layer.provide(EnterpriseProcessRunner.layer)),
-    ),
-  ),
-);
+const layerEnterpriseProvided = Enterprise.layer({
+  threadLaunch: layerThreadLaunchProvided,
+  threadManagement: layerThreadManagementProvided,
+});
 
 export const layerProduction = Layer.mergeAll(
-  layerEnterpriseIssueWorkflowProvided,
-  layerEnterprisePublicationProvided,
-  layerEnterpriseAutomationProvided,
-  EnterpriseAutomation.layerWorker.pipe(Layer.provide(layerEnterpriseAutomationProvided)),
-  layerEnterpriseWorkflowsProvided,
-  layerEnterpriseRolesProvided,
+  layerEnterpriseProvided,
   layer.pipe(Layer.provide(layerProjectService)),
   layerProjectService,
   layerManagedProjectFoldersProvided,
