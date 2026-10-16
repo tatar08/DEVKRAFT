@@ -41,11 +41,26 @@ import {
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
 const decodeResult = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowResult);
 type Revision = 0 | 1 | 2;
+/**
+ * `advance` may dispatch the next stage; `verify` re-checks an existing result and never starts,
+ * retries or stops provider work. Publication uses `verify` so it cannot advance a workflow.
+ */
+type AdvanceMode = "advance" | "verify";
+/** Raised in `verify` mode wherever `advance` would have dispatched new provider work. */
+const notReady = () => new EnterpriseRoleError({ reason: "predecessor_incomplete" });
 
 export class EnterpriseWorkflowService extends Context.Service<
   EnterpriseWorkflowService,
   {
+    /** Idempotently moves the workflow to its next V2-backed stage. */
     readonly advance: (
+      input: EnterpriseAdvanceWorkflowInput,
+    ) => Effect.Effect<EnterpriseAdvanceWorkflowResult, EnterpriseRoleError>;
+    /**
+     * Re-validates a finished workflow (including a fresh deterministic gate) without dispatching
+     * provider work. Fails with `predecessor_incomplete` when a stage would still need to run.
+     */
+    readonly verify: (
       input: EnterpriseAdvanceWorkflowInput,
     ) => Effect.Effect<EnterpriseAdvanceWorkflowResult, EnterpriseRoleError>;
   }
@@ -59,8 +74,9 @@ const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const crypto = yield* Crypto.Crypto;
   const pricing = yield* EnterprisePricing;
-  const advance = Effect.fn("EnterpriseWorkflowService.advance")(function* (
+  const evaluate = Effect.fn("EnterpriseWorkflowService.evaluate")(function* (
     raw: EnterpriseAdvanceWorkflowInput,
+    mode: AdvanceMode,
   ) {
     const decoded = yield* decodeInput(raw).pipe(
       Effect.mapError((cause) => new EnterpriseRoleError({ reason: "invalid_input", cause })),
@@ -134,7 +150,7 @@ const make = Effect.gen(function* () {
       });
       if (decision.status === "tripped") {
         // Stop in-flight runs so a runaway loop does not keep spending; stable command ids make retries idempotent.
-        for (const record of records) {
+        for (const record of mode === "advance" ? records : []) {
           const active = record.projection?.runs.findLast(
             (run) => run.status !== "queued" && !Threads.isTerminalRunStatus(run.status),
           );
@@ -276,7 +292,7 @@ const make = Effect.gen(function* () {
       const run = enterpriseRoleRun(projection, record.threadId);
       if (run !== undefined) {
         if (["failed", "cancelled", "interrupted", "rolled_back"].includes(run.status)) {
-          if (run.status === "failed" && input.routing !== undefined) {
+          if (mode === "advance" && run.status === "failed" && input.routing !== undefined) {
             const modelSelection = yield* chooseModel(
               record,
               false,
@@ -318,6 +334,7 @@ const make = Effect.gen(function* () {
             ? undefined
             : enterpriseRoleRun(record.projection, record.threadId);
         if (run === undefined) {
+          if (mode === "verify") return yield* notReady();
           const modelSelection = yield* chooseModel(record);
           if (modelSelection === undefined)
             return yield* decodeResult({ state: "blocked", reason: "model_unavailable" });
@@ -396,6 +413,7 @@ const make = Effect.gen(function* () {
     if (report.output.verdict === "request_changes") {
       if (revision === 2)
         return yield* decodeResult({ state: "blocked", reason: "corrections_exhausted" });
+      if (mode === "verify") return yield* notReady();
       const next = revision === 0 ? 1 : 2;
       const nextRecord = records.find(
         (record) => record.role === "coder" && record.revision === next,
@@ -415,6 +433,17 @@ const make = Effect.gen(function* () {
         revision: next,
         threadId: started.threadId,
       });
+    }
+    if (mode === "verify") {
+      // A failing gate is an error here: verification must not launch a correction round.
+      const gate = yield* roles.gateRole({ ...input, role: "coder", revision });
+      const draft = yield* roles.buildPullRequestDraft({
+        ...input,
+        role: "coder",
+        revision,
+        artifactId: gate.artifactId,
+      });
+      return yield* decodeResult({ state: "ready", revision, draft });
     }
     const nextRecord = records.find(
       (record) => record.role === "coder" && record.revision === Math.min(2, revision + 1),
@@ -445,16 +474,15 @@ const make = Effect.gen(function* () {
     });
     return yield* decodeResult({ state: "ready", revision, draft });
   });
-  return EnterpriseWorkflowService.of({
-    advance: (input) =>
-      advance(input).pipe(
-        Effect.provideService(Crypto.Crypto, crypto),
-        Effect.mapError((cause) =>
-          cause._tag === "EnterpriseRoleError"
-            ? cause
-            : new EnterpriseRoleError({ reason: "launch_failed", cause }),
-        ),
+  const runIn = (mode: AdvanceMode) => (input: EnterpriseAdvanceWorkflowInput) =>
+    evaluate(input, mode).pipe(
+      Effect.provideService(Crypto.Crypto, crypto),
+      Effect.mapError((cause) =>
+        cause._tag === "EnterpriseRoleError"
+          ? cause
+          : new EnterpriseRoleError({ reason: "launch_failed", cause }),
       ),
-  });
+    );
+  return EnterpriseWorkflowService.of({ advance: runIn("advance"), verify: runIn("verify") });
 });
 export const layer = Layer.effect(EnterpriseWorkflowService, make);

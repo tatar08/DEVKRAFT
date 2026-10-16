@@ -498,6 +498,7 @@ const scenario = (options: {
                 options.automation === "unauthorized_start" ? "missing" : "valid";
               const sessionId = AuthSessionId.make("session:workflow-owner");
               const observed = Workflows.EnterpriseWorkflowService.of({
+                verify: workflow.verify,
                 advance: (value) =>
                   workflow.advance(value).pipe(
                     Effect.tap((state) =>
@@ -573,6 +574,12 @@ const scenario = (options: {
                   ...check,
                   args: [`sk-${"x".repeat(40)}`],
                 }));
+              if (options.workflow === "happy" && !auto && !options.denyTools) {
+                // Verification is read-only: it must not launch the Architect on a fresh task.
+                const verified = yield* workflow.verify(request).pipe(Effect.flip);
+                assert.equal(verified.reason, "predecessor_incomplete");
+                assert.lengthOf(launches, 0);
+              }
               const first = auto
                 ? (yield* auto.start(request, sessionId)).state
                 : yield* workflow.advance(request);
@@ -932,6 +939,12 @@ const scenario = (options: {
                   );
                   assert.equal(state.draft.approvalStatus, "not_evaluated");
                   assert.equal(state.revision, options.workflow === "happy" ? 0 : 1);
+                  if (!auto) {
+                    const count = launches.length;
+                    const verified = yield* workflow.verify(request);
+                    assert.equal(verified.state, "ready");
+                    assert.lengthOf(launches, count);
+                  }
                   if (auto) {
                     const current = yield* auto.status(request);
                     assert.isFalse(current.enabled);

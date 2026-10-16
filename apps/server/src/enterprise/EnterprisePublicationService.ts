@@ -34,13 +34,15 @@ const RemotePr = Schema.Struct({
   state: Schema.String,
 });
 const decodePrs = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Array(RemotePr)));
+/**
+ * Persisted immediately before the non-idempotent `gh pr create`. Its presence means a create may
+ * have happened, so an unreconciled retry stops at `publication_unknown` instead of replaying.
+ */
 const Receipt = Schema.Struct({
   repository: Schema.String,
   baseBranch: Schema.String,
   headBranch: Schema.String,
   commitSha: Schema.String,
-  // Persisted before invoking the remote mutation. An ambiguous call is never blindly replayed.
-  attempted: Schema.Boolean,
 });
 const decodeReceipt = Schema.decodeUnknownEffect(Schema.fromJsonString(Receipt));
 const encodeReceipt = Schema.encodeEffect(Schema.fromJsonString(Receipt));
@@ -48,6 +50,10 @@ const encodeReceipt = Schema.encodeEffect(Schema.fromJsonString(Receipt));
 export class EnterprisePublicationService extends Context.Service<
   EnterprisePublicationService,
   {
+    /**
+     * Publishes the workflow's verified checkpoint as a draft PR on a deterministic branch.
+     * Never advances the workflow, merges or approves; retries reconcile against GitHub first.
+     */
     readonly publish: (
       input: EnterprisePublishPullRequestInput,
     ) => Effect.Effect<EnterprisePublishedPullRequest, EnterprisePublicationError>;
@@ -70,20 +76,27 @@ const make = Effect.gen(function* () {
         (cause) => new EnterprisePublicationError({ reason: "invalid_input", cause }),
       ),
     );
-    const state = yield* workflow.advance(input.workflow);
+    // Verification re-runs the gate but never dispatches provider work on the publisher's behalf.
+    const state = yield* workflow
+      .verify(input.workflow)
+      .pipe(
+        Effect.mapError(
+          (cause) => new EnterprisePublicationError({ reason: "workflow_not_ready", cause }),
+        ),
+      );
     if (state.state !== "ready")
       return yield* new EnterprisePublicationError({ reason: "workflow_not_ready" });
     const owned = yield* workspace.prepare({ ...input.workflow, spec: input.workflow.task });
     const control = path.dirname(owned.worktreePath);
     const commitSha = state.draft.evidence.diffSha;
-    const headBranch = `enterprise/pr-${yield* enterpriseTaskKey(input.workflow.task)}-${commitSha}`;
+    const taskKey = yield* enterpriseTaskKey(input.workflow.task);
+    const headBranch = `enterprise/pr-${taskKey}-${commitSha}`;
     const receiptPath = path.join(control, "publication.json");
     const receipt = {
       repository: input.repository,
       baseBranch: input.baseBranch,
       headBranch,
       commitSha,
-      attempted: true,
     };
     const lock = path.join(control, "publication.lock");
     return yield* Effect.acquireUseRelease(
@@ -193,7 +206,7 @@ const make = Effect.gen(function* () {
           });
           const found = yield* reconcile();
           if (found !== undefined) return found;
-          if (previous?.attempted)
+          if (previous !== undefined)
             return yield* new EnterprisePublicationError({ reason: "publication_unknown" });
           // Only the verified checkpoint can be uploaded, to a new deterministic branch.
           const remote = `https://github.com/${input.repository}.git`;
@@ -224,7 +237,7 @@ const make = Effect.gen(function* () {
               const tmp = yield* fs.makeTempDirectoryScoped({ prefix: "t3-enterprise-pr-" });
               const bodyPath = path.join(tmp, "body.md");
               yield* fs.writeFileString(bodyPath, state.draft.body);
-              yield* gh([
+              const create = yield* gh([
                 "pr",
                 "create",
                 "--repo",
@@ -235,14 +248,25 @@ const make = Effect.gen(function* () {
                 headBranch,
                 "--draft",
                 "--title",
-                `feat: enterprise task ${headBranch.slice(14, 26)}`,
+                `feat: enterprise task ${taskKey.slice(0, 12)}`,
                 "--body-file",
                 bodyPath,
               ]);
               const created = yield* reconcile();
-              if (created === undefined)
+              if (created !== undefined) return { ...created, reconciled: false };
+              // GitHub search can lag behind a successful create; trust only the exact URL gh printed.
+              const prefix = `https://github.com/${input.repository}/pull/`;
+              const printed = create.stdout.trim();
+              const number = printed.startsWith(prefix) ? printed.slice(prefix.length) : "";
+              if (!/^[1-9]\d*$/.test(number))
                 return yield* new EnterprisePublicationError({ reason: "publication_unknown" });
-              return { ...created, reconciled: false };
+              return yield* decodeResult({
+                url: printed,
+                number: Number(number),
+                commitSha,
+                headBranch,
+                reconciled: false,
+              });
             }),
           );
         }),

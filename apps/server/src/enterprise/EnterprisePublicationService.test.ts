@@ -4,6 +4,7 @@ import {
   EnterpriseAdvanceWorkflowInput,
   EnterprisePublicationError,
   EnterprisePullRequestDraft,
+  EnterpriseRoleError,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -53,6 +54,8 @@ const scenario = (
     | "ambiguous"
     | "mismatch"
     | "not_ready"
+    | "incomplete"
+    | "lagging"
     | "unsafe"
     | "moved"
     | "busy"
@@ -121,7 +124,7 @@ const scenario = (
             creates++;
             const bodyPath = request.args[request.args.indexOf("--body-file") + 1]!;
             body = yield* fs.readFileString(bodyPath).pipe(Effect.orDie);
-            created = mode !== "ambiguous";
+            created = mode !== "ambiguous" && mode !== "lagging";
             if (mode === "ambiguous" || mode === "crash_recovery") return output("", 1);
             return output("https://github.com/example/repo/pull/7");
           }
@@ -154,12 +157,16 @@ const scenario = (
             prepare: () => Effect.succeed({ worktreePath: `${control}/checkout` }),
           } as unknown as Workspace.EnterpriseWorkspaceService["Service"]),
           Layer.succeed(Workflow.EnterpriseWorkflowService, {
-            advance: () =>
-              Effect.succeed(
-                mode === "not_ready"
-                  ? { state: "blocked" as const, reason: "failed_run" as const }
-                  : { state: "ready" as const, revision: 0 as const, draft },
-              ),
+            // Publication must never dispatch provider work, so `advance` is a defect here.
+            advance: () => Effect.die("publication must not advance the workflow"),
+            verify: () =>
+              mode === "incomplete"
+                ? Effect.fail(new EnterpriseRoleError({ reason: "predecessor_incomplete" }))
+                : Effect.succeed(
+                    mode === "not_ready"
+                      ? { state: "blocked" as const, reason: "failed_run" as const }
+                      : { state: "ready" as const, revision: 0 as const, draft },
+                  ),
           }),
         ),
       ),
@@ -218,8 +225,22 @@ describe("Enterprise draft PR publication", () => {
       assert.equal(result.creates, 1);
     }),
   );
+  it.effect("returns the PR gh printed when the follow-up listing has not caught up", () =>
+    Effect.gen(function* () {
+      const result = yield* scenario("lagging");
+      assert.equal(result.first._tag, "Success");
+      if (result.first._tag === "Success") {
+        assert.equal(result.first.success.number, 7);
+        assert.isFalse(result.first.success.reconciled);
+      }
+      // Still invisible remotely: the retry must not create a second PR.
+      assert.equal(reason(result.second), "publication_unknown");
+      assert.equal(result.creates, 1);
+    }),
+  );
   it.effect.each([
     ["not_ready", "workflow_not_ready"],
+    ["incomplete", "workflow_not_ready"],
     ["unsafe", "unsafe_git_config"],
     ["moved", "remote_mismatch"],
     ["busy", "busy"],
