@@ -1,7 +1,7 @@
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { EnterpriseApprovalError } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type {
@@ -16,6 +16,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { requestConfirmDialog } from "~/confirmDialog";
 import { openPreviewSession } from "~/components/preview/openPreviewSession";
 import { Button } from "~/components/ui/button";
+import { Label } from "~/components/ui/label";
 import { Input } from "~/components/ui/input";
 import {
   Dialog,
@@ -26,7 +27,12 @@ import {
   DialogPanel,
 } from "~/components/ui/dialog";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { blockerMessage, coderTarget, mergeCheckMatches } from "./workOrders.logic";
+import {
+  actionErrorMessage,
+  blockerMessage,
+  coderTarget,
+  mergeCheckMatches,
+} from "./workOrders.logic";
 
 /** Evidence is revalidated on demand, never by the board's background refresh. */
 export function WorkOrderDetail({
@@ -64,6 +70,7 @@ export function WorkOrderDetail({
     setCheckReceipt(value ? { context, value, checkedAt: Date.now() } : null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const inputId = useId();
   const [repository, setRepository] = useState("");
   const [baseBranch, setBaseBranch] = useState("main");
   const [targetBranch, setTargetBranch] = useState("main");
@@ -202,22 +209,24 @@ export function WorkOrderDetail({
             ))}
           </div>
           <h3 className="font-medium">Draft pull request</h3>
-          <label className="block">
-            Repository (OWNER/REPO)
+          <div className="space-y-1">
+            <Label htmlFor={`${inputId}-repository`}>Repository (OWNER/REPO)</Label>
             <Input
+              id={`${inputId}-repository`}
               disabled={busy}
               value={repository}
               onChange={(event) => setRepository(event.target.value)}
             />
-          </label>
-          <label className="block">
-            Base branch
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={`${inputId}-base`}>Base branch</Label>
             <Input
+              id={`${inputId}-base`}
               disabled={busy}
               value={baseBranch}
               onChange={(event) => setBaseBranch(event.target.value)}
             />
-          </label>
+          </div>
           <Action
             label="Publish draft PR"
             reason={
@@ -241,14 +250,15 @@ export function WorkOrderDetail({
                 if (result._tag === "Success") {
                   setMessage(`Draft PR: ${result.value.url}`);
                   onChanged();
-                } else setMessage("Publication failed. Refresh before retrying.");
+                } else setMessage(actionErrorMessage(squashAtomCommandFailure(result)));
               })
             }
           />
           <h3 className="font-medium">Local merge</h3>
-          <label className="block">
-            Target branch
+          <div className="space-y-1">
+            <Label htmlFor={`${inputId}-target`}>Target branch</Label>
             <Input
+              id={`${inputId}-target`}
               disabled={busy}
               value={targetBranch}
               onChange={(event) => {
@@ -256,7 +266,7 @@ export function WorkOrderDetail({
                 setMergeCheck(null);
               }}
             />
-          </label>
+          </div>
           <Action
             label="Check merge"
             reason={
@@ -286,7 +296,7 @@ export function WorkOrderDetail({
                 if (result._tag === "Success") {
                   setMergeCheck(result.value);
                   setMessage("Merge check passed.");
-                } else setMessage("Merge check failed.");
+                } else setMessage(actionErrorMessage(squashAtomCommandFailure(result)));
               })
             }
           />
@@ -341,7 +351,7 @@ export function WorkOrderDetail({
                 setMessage(
                   result._tag === "Success"
                     ? "Local branch merged. Nothing was pushed."
-                    : "Merge failed. Refresh evidence and check the target again.",
+                    : actionErrorMessage(squashAtomCommandFailure(result)),
                 );
                 onChanged();
               })
