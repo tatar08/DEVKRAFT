@@ -1,5 +1,11 @@
+import {
+  EnterpriseApprovalError,
+  EnterpriseMergeCheckError,
+  EnterprisePublicationError,
+} from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  actionErrorMessage,
   blockerMessage,
   coderTarget,
   mergeCheckMatches,
@@ -65,5 +71,70 @@ describe("Coder checkout selection", () => {
     expect(coderTarget({ key, activeRole: null }, `enterprise:${"b".repeat(64)}:coder`)).toBeNull();
     expect(coderTarget({ key, activeRole: null }, `enterprise:${key}:qa`)).toBeNull();
     expect(coderTarget({ key, activeRole: null })).toBeNull();
+  });
+});
+
+describe("action error guidance", () => {
+  it.each([
+    [
+      new EnterprisePublicationError({
+        reason: "unsafe_git_config",
+        cause: new Error("private diagnostic"),
+      }),
+      "Repository-local Git URL/credential settings are not allowed.",
+    ],
+    [
+      new EnterprisePublicationError({
+        reason: "remote_mismatch",
+        cause: new Error("private diagnostic"),
+      }),
+      "A different branch or PR already exists for this task.",
+    ],
+    [
+      new EnterprisePublicationError({
+        reason: "publication_unknown",
+        cause: new Error("private diagnostic"),
+      }),
+      "A previous publish may have succeeded; check GitHub before retrying.",
+    ],
+    [
+      new EnterpriseApprovalError({
+        reason: "target_moved",
+        cause: new Error("private diagnostic"),
+      }),
+      "The target branch moved. Run Check merge again.",
+    ],
+    [
+      new EnterpriseMergeCheckError({ reason: "conflict", cause: new Error("private diagnostic") }),
+      "The changes conflict with the target branch.",
+    ],
+    [
+      new EnterpriseApprovalError({ reason: "conflict", cause: new Error("private diagnostic") }),
+      "The changes conflict with the target branch.",
+    ],
+    [
+      new EnterprisePublicationError({ reason: "busy", cause: new Error("private diagnostic") }),
+      "Another operation is running. Try again in a moment.",
+    ],
+    [
+      new EnterpriseApprovalError({ reason: "busy", cause: new Error("private diagnostic") }),
+      "Another operation is running. Try again in a moment.",
+    ],
+    [
+      new EnterpriseMergeCheckError({ reason: "busy", cause: new Error("private diagnostic") }),
+      "Another operation is running. Try again in a moment.",
+    ],
+  ])("explains %s without exposing causes", (error, message) => {
+    expect(actionErrorMessage(error)).toBe(message);
+  });
+
+  it.each([
+    null,
+    new Error("private diagnostic"),
+    { _tag: "UnrecognizedError", reason: "busy", cause: "private diagnostic" },
+    { _tag: "EnterprisePublicationError", reason: "future_reason", cause: "private diagnostic" },
+    { reason: "unsafe_git_config" },
+  ])("uses safe fallback guidance for unknown errors", (error) => {
+    expect(actionErrorMessage(error)).toBe("The action failed. Refresh evidence before retrying.");
   });
 });
