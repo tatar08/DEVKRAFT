@@ -216,6 +216,30 @@ Extend the existing React Native app in `apps/mobile`. Wire `createEnterpriseEnv
 
 Follow `apps/mobile` conventions (`features/`, themed list rows, safe areas). Touch targets must be at least 44 pt. Handle offline state: show the cached list read-only, and disable decisions while disconnected, because approval must never be acknowledged offline (Blueprint risk register).
 
+### Codex — C7: fixes from the Phase 5 real-client check (priority: high)
+
+Found by the supervisor while walking the cockpit journey in a browser: board → Running → Awaiting Approval → Proof-of-Work → Approve.
+
+1. **Lock contention (bug).** `EnterpriseWorkOrders` reads approvals through `workspace.readApprovals`, which takes the task operation lock. The board polls every 5 seconds, so it collides with `getApproval` and `recordApproval`, which re-run the gate under that same lock. The `busy` that results is reported as `workflow_not_ready`, and the panel shows "Could not revalidate evidence"; a second Refresh succeeds.
+   - **Fix:** add a lock-free, read-only `peekApprovals` to the workspace service. It reads `approvals.json` without the operation lock, which is safe because writes are atomic. It must still refuse symlinks and files over the size limit and check the task ID. Use it in `EnterpriseWorkOrders`.
+   - In `EnterpriseApprovalService`, report a workspace `busy` as a new retryable `EnterpriseApprovalError` reason `busy` (it already exists in the contract), not `workflow_not_ready`. Show "Another operation is running. Try Refresh in a moment." in the web and mobile panels.
+   - Add regression tests: a read model that holds no lock while a gate holds it, and `busy` mapped to `busy`.
+2. **Misleading blocker (UX).** With no approvals, `risk.expiresAt` is 0, so `getEnterpriseApprovalBlockers` reports `approval_expired` alongside `approval_required`, and the panel says "Approval has expired" before anyone has approved.
+   - **Fix:** in `packages/contracts/src/enterprise.ts`, report `approval_expired` only when `risk.decision === "approved"`.
+   - Update the contract tests, the CLI evidence tests and the approval service tests that expect the old behavior. Keep an expired _approved_ decision blocked.
+
+**Files you may edit:**
+
+- `apps/server/src/enterprise/EnterpriseWorkOrders.ts`
+- `apps/server/src/enterprise/EnterpriseWorkspaceApprovals.ts`
+- `apps/server/src/enterprise/EnterpriseWorkspaceService.ts`
+- `apps/server/src/enterprise/EnterpriseApprovalService.ts`
+- `packages/contracts/src/enterprise.ts` (only `getEnterpriseApprovalBlockers`)
+- the message mapping in `apps/web/src/components/enterprise/*` and `apps/mobile/src/features/enterprise/*`
+- tests for all of these
+
+**Done when:** the baseline test command passes, typecheck is clean for server, contracts, web and mobile, and lint is clean on the changed files.
+
 ### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
 | Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
