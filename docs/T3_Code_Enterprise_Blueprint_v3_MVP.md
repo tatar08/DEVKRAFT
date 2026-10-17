@@ -3,7 +3,7 @@
 > **Document type:** Implementation blueprint (standalone Markdown implementation record).  
 > **Date:** 15 October 2026  
 > **Basis:** Earlier Interactive HTML v3.0 and the previous v2.0 roadmap; the HTML source is not present in this checkout.  
-> **Status:** Phase 2–3 integration added with focused coverage; local Issue-fixture workflows and repeated scoped cloud/local benchmarks are now verified; live remote publication remains unexecuted by user choice. V2 baseline checked; Enterprise contracts and CLI evidence verification implemented. Owned worktree/cleanup and CLI issue import implemented; Linux check execution fails closed when sandbox is unavailable. V2 role launch, checkpoint handoff, structured spec/QA and snapshot gate/PR drafts are implemented with focused tests. Two supervised QA-backed correction rounds are implemented. `gateAndContinue` now starts bounded corrections from persisted deterministic failures. A V2-backed workflow advance RPC now coordinates stages and correction rounds. Opt-in background automation now uses the existing scheduler and V2 event sequences, with persisted configuration and session revalidation. Explicit cancellation persists intent before existing V2 Stop commands and retries partial dispatch. Native Issue-to-PR acceptance, hard-crash recovery drills and remote PR reconciliation remain incomplete.  
+> **Status (17 October 2026):** Phases 0–3 are complete for the local/Linux MVP. Phase 2 passed live remote acceptance on a private demo repository (real issue → V2 roles → deterministic gate → draft PR, with a duplicate publish reconciled). Phase 3 evidence and its reproduction test are in the repository. Phase 4 has started: background automation, cancellation retry, a tenant boundary and a publication crash drill exist. Authenticated approval persistence, restart/reconnect drills and prompt-injection fixtures remain. Phases 5–6 have not started.  
 > **Repository:** https://github.com/pingdotgg/t3code  
 > **Pinned Commit:** `511d20c6f20c2ed6ff787aba068d7d673e2949b9` (Tag: `v0.0.46-nightly.20261012.3035` / `t3@0.0.45`)  
 > **Local Runtime:** http://localhost:3700/ (reported in earlier setup; not reverified by the source/test audit).  
@@ -67,27 +67,27 @@ Contracts, isolation, approvals, recovery
 
 **อัปเดตล่าสุด: 17 October 2026** — baseline ที่บันทึกก่อนหน้านี้ครอบคลุม build, pairing, scoped tests และ live CLI turns; รอบปัจจุบันเพิ่ม issue-to-workflow RPC, explicit draft publication/reconciliation, workflow routing, bounded provider retries และ native Ollama ผ่าน Codex profile เดิม การมี implementation และ focused tests ไม่เท่ากับผ่าน live remote acceptance หรือพร้อม production
 
-**วิธีอ่านความคืบหน้า:** Phase 0–1 นับตามขอบเขต local/Linux MVP ที่บันทึกไว้ Phase 2 ยังต้องทดสอบ issue → remote PR บน demo repository จริง Phase 3 ผ่าน repeated scoped benchmark cloud/local ชุดเดียวกันแล้ว (5 cases × 3 repetitions ต่อ backend); ผลนี้ไม่รับรองทุกชนิดงานหรือคุณภาพ production ส่วน Phase 4 ยังไม่ผ่าน authenticated approval และ hard-crash recovery gates
+**วิธีอ่านความคืบหน้า:** Phase 0–3 นับตามขอบเขต local/Linux MVP โดยแต่ละ phase ผ่าน exit criterion ที่มีหลักฐานลิงก์ไว้: Phase 1 = parallel isolation test, Phase 2 = live remote acceptance บน private demo repository ครั้งเดียว, Phase 3 = raw benchmark samples ที่ test คำนวณซ้ำได้ ผลเหล่านี้ไม่ใช่ pass-rate benchmark หรือการรับรอง production ส่วน Phase 4 ยังไม่ผ่าน authenticated approval และ hard-crash recovery gates
 
 ```
 [Phase 0:100%] ████████████████████ (8/8; provider CLI smoke verified)
 [Phase 1:100%] ████████████████████ (5/5 + exit test; authenticated read-only merge check; merge execution gated on Phase 4 approvals)
-[Phase 2: In progress] Issue URL → persisted workflow → verified draft publication implemented; live remote acceptance pending
+[Phase 2:100%] ████████████████████ (live GitHub issue → V2 roles → gate → draft PR; duplicate publish reconciled)
 [Phase 3:100%] ████████████████████ (routing/failover/native Ollama; scoped cloud/local benchmark with raw samples in docs/benchmarks)
 [Phase 4:  0%] ░░░░░░░░░░░░░░░░░░░░ (V2 workflow/cancel retry implemented; approval/PR recovery pending)
 [Phase 5:  0%] ░░░░░░░░░░░░░░░░░░░░ (Kanban Cockpit & Mobile Approval)
 [Phase 6:  0%] ░░░░░░░░░░░░░░░░░░░░ (Beta Release & Open Source Launch)
 ```
 
-| Phase       | Scope & Milestones                           | Target Window |                           Status                            | Key Deliverable                                                                                                                                                                                                                                                                        |
-| :---------- | :------------------------------------------- | :-----------: | :---------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 0** | Technical Audit & Baseline Verification      |     W1–W2     |                 🟢 **100% Verified (8/8)**                  | Audit + ADR + temporary server/web/pairing and provider CLI turns verified                                                                                                                                                                                                             |
-| **Phase 1** | Safe Task Execution & Git Worktree Isolation |     W3–W4     |                🟢 **100% (5/5 + exit test)**                | Ownership/cleanup, Linux check sandbox, secret guard; serialized conflict detection via authenticated `enterprise.checkMerge`; [parallel isolation test](../apps/server/src/enterprise/EnterpriseParallelIsolation.test.ts); merge _execution_ deliberately gated on Phase 4 approvals |
-| **Phase 2** | Multi-Agent Issue-to-PR Golden Path          |     W5–W6     | 🟡 **Implementation integrated; remote acceptance pending** | [Contracts + CLI issue/evidence/worktree services](#initial-implementation-contracts-and-evidence-verification); role services implemented; five-stage baseline demo recorded; issue-start and explicit draft publication RPCs added; live remote acceptance pending                   |
-| **Phase 3** | Hybrid Router & Native Ollama GPU Profile    |     W7–W8     |                         ✅ **100%**                         | Routing/cost/bounded same-backend failover; native Ollama through the Codex loop; [raw benchmark samples + reproduction test](./benchmarks/enterprise-phase3-2026-10-17/README.md)                                                                                                     |
-| **Phase 4** | Durability, Recovery & Security Hardening    |    W9–W10     |              🟡 **In Progress; 0/5 complete**               | [V2-backed automation/cancel retry](#workflow-cancellation) implemented; authenticated approval/remote PR recovery pending                                                                                                                                                             |
-| **Phase 5** | Founder Cockpit, Kanban & Mobile Approvals   |    W11–W12    |                       ⚪ **Pending**                        | Work Order Deck & Tiered Approval Gate                                                                                                                                                                                                                                                 |
-| **Phase 6** | Beta Release & Open-Source Launch            |    W13–W14    |                       ⚪ **Pending**                        | Demo Video, Benchmark Suite & Public Beta                                                                                                                                                                                                                                              |
+| Phase       | Scope & Milestones                           | Target Window |                   Status                    | Key Deliverable                                                                                                                                                                                                                                                                        |
+| :---------- | :------------------------------------------- | :-----------: | :-----------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 0** | Technical Audit & Baseline Verification      |     W1–W2     |         🟢 **100% Verified (8/8)**          | Audit + ADR + temporary server/web/pairing and provider CLI turns verified                                                                                                                                                                                                             |
+| **Phase 1** | Safe Task Execution & Git Worktree Isolation |     W3–W4     |        🟢 **100% (5/5 + exit test)**        | Ownership/cleanup, Linux check sandbox, secret guard; serialized conflict detection via authenticated `enterprise.checkMerge`; [parallel isolation test](../apps/server/src/enterprise/EnterpriseParallelIsolation.test.ts); merge _execution_ deliberately gated on Phase 4 approvals |
+| **Phase 2** | Multi-Agent Issue-to-PR Golden Path          |     W5–W6     | ✅ **100% (live remote acceptance passed)** | Issue → spec → code → QA → gate → draft PR on a real GitHub repository; [acceptance evidence](./benchmarks/enterprise-phase2-acceptance-2026-10-17/README.md)                                                                                                                          |
+| **Phase 3** | Hybrid Router & Native Ollama GPU Profile    |     W7–W8     |                 ✅ **100%**                 | Routing/cost/bounded same-backend failover; native Ollama through the Codex loop; [raw benchmark samples + reproduction test](./benchmarks/enterprise-phase3-2026-10-17/README.md)                                                                                                     |
+| **Phase 4** | Durability, Recovery & Security Hardening    |    W9–W10     |      🟡 **In Progress; 0/5 complete**       | [V2-backed automation/cancel retry](#workflow-cancellation) implemented; authenticated approval/remote PR recovery pending                                                                                                                                                             |
+| **Phase 5** | Founder Cockpit, Kanban & Mobile Approvals   |    W11–W12    |               ⚪ **Pending**                | Work Order Deck & Tiered Approval Gate                                                                                                                                                                                                                                                 |
+| **Phase 6** | Beta Release & Open-Source Launch            |    W13–W14    |               ⚪ **Pending**                | Demo Video, Benchmark Suite & Public Beta                                                                                                                                                                                                                                              |
 
 <a id="supervised-review-2026-10-17"></a>
 
@@ -140,7 +140,7 @@ Contracts, isolation, approvals, recovery
 - **Conflict detection is available over an authenticated RPC.** [`enterprise.checkMerge`](../apps/server/src/enterprise/EnterpriseMergeCheck.ts) requires the same three scopes and tenant check as every other Enterprise RPC. It resolves the task commit from the completed Coder handoff (not from the client) and the target from a local branch. It is read-only, and its [tests](../apps/server/src/enterprise/EnterpriseMergeCheck.test.ts) cover a clean check, a conflict, an incomplete handoff, a missing target branch and option-like branch names.
 - **Merge execution is deliberately not exposed over RPC.** It needs an authenticated approval that the server can verify, which arrives with Phase 4 approval persistence. Accepting a client-supplied `RiskDecision` would open the approval-spoofing path listed in the risk register.
 
-### 📋 Phase 2: Multi-Agent Issue-to-PR Golden Path (Weeks 5–6) — integrated implementation; live remote acceptance pending
+### 📋 Phase 2: Multi-Agent Issue-to-PR Golden Path (Weeks 5–6) — 100% (live remote acceptance passed)
 
 **Current integration (17 October 2026):** `enterprise.startIssueWorkflow` authenticates the session before fetching a GitHub issue, freezes redacted issue text as untrusted context, preserves operator-owned grants/budget/routing, and starts the existing persisted automation. `enterprise.publishPullRequest` explicitly revalidates workflow readiness and publishes only its verified checkpoint to a deterministic new branch and a draft PR. It requires orchestration, filesystem-write and source-control-write scopes; it is not invoked automatically by background automation. No merge or approval is granted.
 
@@ -148,7 +148,14 @@ Publication records intent before the non-idempotent remote create. Retry first 
 
 **Local acceptance:** the reproducible headless harness `apps/server/scripts/verify-enterprise-live.ts` imports an Issue fixture through the real authenticated RPC/importer and runs real V2 roles through completed checkpoints, four sandboxed checks and a ready draft. Both docs/hybrid and source/cloud scenarios passed; only the intended file changed and repeated advance stayed ready. This is a local `gh` read fixture, not a real GitHub issue. The fixture refuses GitHub mutations.
 
-**Remote acceptance deferred by user instruction:** the user selected “ทดสอบในเครื่องก่อน ยังไม่สร้างบน GitHub” on 17 October 2026. No repository, Issue or PR was created. Live remote publication, including reconciliation after a lost create response, therefore remains unverified. Eight focused publication service tests cover normal publication, conflicts and ambiguous-response recovery locally; they do not close this external gate.
+**Live remote acceptance (17 October 2026):** the user approved one run against a **private** demo repository, `tatar08/t3-enterprise-demo`.
+
+- **The run:** `verify-enterprise-live.ts --remote` cloned the repository and imported real issue #1 with the authenticated `gh`. Architect, Coder and QA ran through V2 on Codex `gpt-6.1-sol`, and four sandboxed checks passed at one commit. `enterprise.publishPullRequest` then opened draft PR #2.
+- **Duplicate check:** a second identical publish returned the same PR with `reconciled: true`, and GitHub lists exactly one PR for that head branch.
+- **Independent check by the supervisor:** the PR changes only `calc.py` by one line, and the tests pass on the PR head.
+- **Time and cost:** about 40 seconds from import to `ready`, at USD 0.15 API-equivalent.
+- **Evidence:** [verdict and Proof-of-Work draft](./benchmarks/enterprise-phase2-acceptance-2026-10-17/README.md).
+- **Limits:** a single benign run. Reconciliation after a _lost_ create response is covered by the fake-`gh` crash drill, not by a live failure. Nothing was merged.
 
 - [x] **Typed Contracts Schema (initial implementation):** [TaskSpec, AgentHandoff, RiskDecision, PullRequestEvidence](../packages/contracts/src/enterprise.ts) พร้อม [schema/evidence-gate tests](../packages/contracts/src/enterprise.test.ts); role launch/release/collectHandoff/collectRoleArtifact มี typed RPC และ structured spec/QA schemas แล้ว แต่ยังไม่ใช่ durable Enterprise task-stage controller
 - [x] **Evidence Verification Service & CLI (initial implementation):** [EnterpriseEvidenceService](../apps/server/src/enterprise/EnterpriseEvidenceService.ts) และ [t3 enterprise verify](../apps/server/src/cli/enterprise.ts) พร้อม [CLI integration tests](../apps/server/src/cli/enterprise.test.ts); ตรวจ declared evidence เท่านั้น ยังไม่รัน tests/scan จริงหรือ authorize merge
@@ -678,9 +685,9 @@ Stars ไม่ใช่ตัวแทนของ software quality โดย�
 
 Interactive readiness evaluator, stored in this browser session only
 
-0%
+17%
 
-0 / 12 release gates verified
+2 / 12 release gates verified
 
 **NOT READY — validation required**
 
@@ -690,7 +697,7 @@ Interactive readiness evaluator, stored in this browser session only
 2. [ ] Threat model, permission boundaries, secret handling reviewed
 3. [ ] Isolated task execution tests incl. malicious repo content pass
 4. [x] Agent handoff schema and deterministic tests validated — [contracts](../packages/contracts/src/enterprise.test.ts), [V2 handoff/gate/draft service tests](../apps/server/src/enterprise/EnterpriseRoleService.test.ts), [snapshot tests](../apps/server/src/enterprise/EnterpriseSnapshotGate.test.ts); focused fixtures, not full native golden-path acceptance
-5. [ ] Issue-to-PR golden path works on clean demo repo
+5. [x] Issue-to-PR golden path works on clean demo repo — [live acceptance on a private demo repository](./benchmarks/enterprise-phase2-acceptance-2026-10-17/README.md): one benign run, not a pass-rate benchmark
 6. [ ] Merge/approval policy blocks all critical changes without review
 7. [ ] Restart, retry, cancel and duplicate-PR recovery tests pass
 8. [ ] Budget controller and honest measured cost attribution verified
