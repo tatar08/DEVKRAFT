@@ -240,6 +240,25 @@ Found by the supervisor while walking the cockpit journey in a browser: board â†
 
 **Done when:** the baseline test command passes, typecheck is clean for server, contracts, web and mobile, and lint is clean on the changed files.
 
+### Codex â€” C8: Phase 5 polish from the second real-client pass (priority: medium)
+
+1. **Accessibility.** In `apps/web/src/components/enterprise/WorkOrderDetail.tsx`, the Repository, Base branch and Target branch inputs have no accessible name. The visible label is not associated with the input, so screen readers announce only "textbox" or the current value.
+   - **Fix:** associate each label with its input (`<Label htmlFor>` with `id`, or the field pattern used in `components/ui`).
+   - Do the same in the mobile approval screen if it has inputs.
+2. **Actionable errors.** A failed publish, merge or merge check shows a generic message ("Publication failed. Refresh before retrying.").
+   - **Fix:** map the typed error `reason` (`EnterprisePublicationError`, `EnterpriseApprovalError`, `EnterpriseMergeCheckError`) to plain language, for example:
+     - `unsafe_git_config`: "Repository-local Git URL/credential settings are not allowed."
+     - `remote_mismatch`: "A different branch or PR already exists for this task."
+     - `publication_unknown`: "A previous publish may have succeeded; check GitHub before retrying."
+     - `target_moved`: "The target branch moved. Run Check merge again."
+     - `conflict`: "The changes conflict with the target branch."
+     - `busy`: "Another operation is running. Try again in a moment."
+   - Put the mapping in `workOrders.logic.ts` as a pure function with tests. Never show raw causes.
+
+**Files you may edit:** `apps/web/src/components/enterprise/*` and `apps/mobile/src/features/enterprise/*`, plus their tests.
+
+**Done when:** typecheck passes for web and mobile, lint is clean, and the logic tests pass.
+
 ### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
 | Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
