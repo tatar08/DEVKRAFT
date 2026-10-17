@@ -221,6 +221,14 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label="Settings"
             onClick={handleSettingsClick}
           />
+          <SidebarUtilityItem
+            icon={<ChartNoAxesColumnIcon />}
+            label="Work Orders"
+            onClick={() => {
+              closeMobileSidebar();
+              void navigate({ to: "/work-orders" });
+            }}
+          />
           {pullRequestsSupported ? (
             <SidebarUtilityItem
               icon={<PullRequestGlyph.pullRequest />}
