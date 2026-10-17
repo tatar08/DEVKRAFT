@@ -163,6 +163,59 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 
 **Done when:** typecheck and lint are clean, and `verify-enterprise-live.ts --help` style argument validation still works. Do not run model turns.
 
+### Codex — C5: web Founder Cockpit (Phase 5, priority: high)
+
+**Data layer (already built, do not change):**
+
+- `enterpriseEnvironment` in `apps/web/src/state/enterprise.ts`, from `packages/client-runtime/src/state/enterprise.ts`:
+  - `workOrders({ environmentId, input: {} })` is a read query refreshed every 5 seconds. Read it with `useEnvironmentQuery`.
+  - `getApproval`, `recordApproval`, `mergeTask`, `checkMerge`, `publishPullRequest` and `cancelWorkflow` are commands. Call them with `useAtomCommand`, following the pattern in `components/settings/ScheduledTasksSettings.tsx`.
+- Types are `EnterpriseWorkOrder`, `EnterpriseApprovalStatus` and the others in `packages/contracts/src/enterprise.ts`. Each work order carries the `workflow` input that the commands need.
+
+**Files you may edit:**
+
+- new `apps/web/src/routes/_chat.work-orders.tsx`
+- new files under `apps/web/src/components/enterprise/`
+- the regenerated `apps/web/src/routeTree.gen.ts`
+- one nav entry in `apps/web/src/components/sidebar/SidebarChrome.tsx`, next to "/pull-requests", plus its location check in `apps/web/src/components/sidebar/mainAppLocation.ts`
+
+Do not touch server, contracts or client-runtime code.
+
+**Build:**
+
+1. **Kanban board.** Columns, in order: Queued, Running, Verifying, Awaiting Approval, PR Opened, Blocked, based on `workOrder.stage`.
+   - Each card shows the title, task ID, active role and revision when present, stored approval counts, a PR link when present and a relative `updatedAt`.
+   - The board must be keyboard navigable: cards are focusable and Enter opens one.
+   - Handle empty, loading, error, disconnected and partial states, like other pages do.
+2. **Proof-of-Work detail panel.** It opens from a card and calls `getApproval` once when opened and when the user presses Refresh (never on a timer, because it re-runs the gate). It shows:
+   - the verified commit, each check with its status, the security scan, the cost (or "unknown") against the budget
+   - the risk tier, critical changes, matched rules, required versus counted approvers, ignored decisions with their reasons, and blockers
+   - Use plain language for blockers such as `approval_required` and `stale_diff`.
+3. **Actions.** Each action is disabled with a visible reason when it doesn't apply:
+   - **Approve / Reject:** `recordApproval`. Rejecting asks for confirmation via `requestConfirmDialog`.
+   - **Publish draft PR:** `publishPullRequest`. The user enters the repository (`OWNER/REPO`) and the base branch, which defaults to `main`.
+   - **Check merge:** `checkMerge`, against a target branch the user enters.
+   - **Merge:** `mergeTask`. Enabled only when `blockers` is empty. It needs `expectedTargetCommit`, taken from a fresh `checkMerge` result's `targetCommit`. It always asks for confirmation and states that it moves a local branch and never pushes.
+   - **Cancel workflow:** `cancelWorkflow`, with confirmation.
+   - **Open in T3:** links to the active Coder thread route (`/$environmentId/$threadId`), where the existing diff, terminal and **preview** panels work on the task checkout.
+   - **Preview:** opens the existing preview for the Coder thread, via `components/preview/openPreviewSession.ts`. It runs only on an explicit click and never automatically, because a dev server runs on the host outside the check sandbox. Show that warning next to the button.
+4. **Accessibility and design.** Follow the existing design system in `components/ui/*`, use semantic headings, visible focus states and touch targets of at least 44 px on narrow widths. Respect reduced-motion settings. Do not add new dependencies.
+
+**Tests:** logic tests only, for example grouping, blocker wording and action enablement as pure functions in a `*.logic.ts` file. Do not render components to static markup (AGENTS.md).
+
+**Done when:** typecheck passes for `apps/web` and lint is clean for the changed files. The supervisor verifies in a real client.
+
+### Codex/Gemini — C6: mobile approval inbox (Phase 5, after C5)
+
+Extend the existing React Native app in `apps/mobile`. Wire `createEnterpriseEnvironmentAtoms` into the mobile connection runtime, then add an "Approvals" screen:
+
+- It lists work orders in `awaiting_approval` (read query).
+- Opening one calls `getApproval` and shows the same Proof-of-Work summary as web, in compact form.
+- Approve and Reject use `recordApproval`. A rejection asks for confirmation.
+- Merge and Publish are **not** offered on mobile in the MVP.
+
+Follow `apps/mobile` conventions (`features/`, themed list rows, safe areas). Touch targets must be at least 44 pt. Handle offline state: show the cached list read-only, and disable decisions while disconnected, because approval must never be acknowledged offline (Blueprint risk register).
+
 ### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
 | Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
