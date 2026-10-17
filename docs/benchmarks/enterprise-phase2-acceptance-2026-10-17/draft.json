@@ -1,0 +1,51 @@
+{
+  "evidence": {
+    "taskId": "acceptance:code",
+    "diffSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+    "tests": [
+      {
+        "name": "test",
+        "kind": "test",
+        "status": "passed",
+        "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+        "artifactIds": ["gate-4a933cce-7c79-4680-a332-857d471a8a5b.json"]
+      },
+      {
+        "name": "lint",
+        "kind": "lint",
+        "status": "passed",
+        "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+        "artifactIds": ["gate-4a933cce-7c79-4680-a332-857d471a8a5b.json"]
+      },
+      {
+        "name": "typecheck",
+        "kind": "typecheck",
+        "status": "passed",
+        "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+        "artifactIds": ["gate-4a933cce-7c79-4680-a332-857d471a8a5b.json"]
+      }
+    ],
+    "securityScan": {
+      "name": "security_scan",
+      "kind": "security_scan",
+      "status": "passed",
+      "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "artifactIds": ["gate-4a933cce-7c79-4680-a332-857d471a8a5b.json"]
+    },
+    "cost": {
+      "currency": "USD",
+      "amountCents": 15
+    },
+    "provenance": {
+      "threadId": "enterprise:58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc:coder",
+      "runId": "run:thread:enterprise%3A58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc%3Acoder:ordinal:1",
+      "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "artifactIds": [
+        "checkpoint:scope:checkpoint-scope%3Athread%3Aenterprise%253A58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc%253Acoder%3Aname%3Aroot:name:1",
+        "gate-4a933cce-7c79-4680-a332-857d471a8a5b.json"
+      ]
+    }
+  },
+  "body": "## Summary\n\nTask: acceptance:code\n\nAcceptance criteria:\n\n- add returns a+b for positive, negative and zero; only calc.py changes\n\n## Proof of work\n\nCheckpoint commit: `71c874401181eb8d8980b459dad59c9c7556c7d9`\n\n| Check | Kind | Result | Evidence |\n| --- | --- | --- | --- |\n| test | test | passed | gate-4a933cce-7c79-4680-a332-857d471a8a5b.json |\n| lint | lint | passed | gate-4a933cce-7c79-4680-a332-857d471a8a5b.json |\n| typecheck | typecheck | passed | gate-4a933cce-7c79-4680-a332-857d471a8a5b.json |\n| security\\_scan | security_scan | passed | gate-4a933cce-7c79-4680-a332-857d471a8a5b.json |\n\nV2 thread: enterprise:58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc:coder\nV2 run: run:thread:enterprise%3A58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc%3Acoder:ordinal:1\n\n## Review status\n\nDraft only. Provider cost: $0.15 (rounded up). Authenticated approval, structured QA acceptance and publication have not been evaluated.\n",
+  "approvalStatus": "not_evaluated"
+}

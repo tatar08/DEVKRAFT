@@ -1,6 +1,10 @@
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off globalDate:off globalFetch:off globalConsole:off preferSchemaOverJson:off - Host-side acceptance harness owns processes, transport and deadlines.
-/** Opt-in local Issue fixture → real V2 roles → sandbox gates → draft, with no GitHub writes.
- * node apps/server/scripts/verify-enterprise-live.ts --scratch /path/outside/tmp --scenario docs
+/** Opt-in Issue → real V2 roles → sandbox gates → draft acceptance.
+ * Local (no GitHub writes):
+ *   node apps/server/scripts/verify-enterprise-live.ts --scratch /path/outside/tmp --scenario docs
+ * Remote (Phase 2 live acceptance; clones OWNER/REPO, imports a real issue with the installed `gh`,
+ * publishes one draft PR, then publishes again to prove reconciliation creates no duplicate):
+ *   node apps/server/scripts/verify-enterprise-live.ts --scratch /path --remote OWNER/REPO --issue 1
  * Uses the current Codex authentication and local Ollama. Retains only disposable test state.
  */
 import * as NodeAssert from "node:assert/strict";
@@ -34,13 +38,25 @@ const { values } = NodeUtil.parseArgs({
     scratch: { type: "string" },
     scenario: { type: "string", default: "docs" },
     model: { type: "string", default: "gpt-6.1-sol" },
+    remote: { type: "string" },
+    issue: { type: "string" },
+    server: { type: "string", default: "dist" },
   },
 });
+const remote = values.remote;
+NodeAssert.ok(
+  remote === undefined ||
+    (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(remote) && /^[1-9][0-9]*$/.test(values.issue ?? "")),
+  "--remote OWNER/REPO requires --issue NUMBER",
+);
+NodeAssert.ok(values.server === "dist" || values.server === "source");
 NodeAssert.ok(
   values.scratch && !NodePath.resolve(values.scratch).startsWith("/tmp/"),
   "Specify writable scratch outside /tmp",
 );
 NodeAssert.ok(values.scenario === "docs" || values.scenario === "code");
+// The remote fixture is the calculator bug; its issue asks for a code change.
+if (remote !== undefined) values.scenario = "code";
 NodeAssert.equal(
   values.model,
   "gpt-6.1-sol",
@@ -54,7 +70,9 @@ const home = NodePath.join(evidence, "home");
 const repo = NodePath.join(evidence, "repo");
 const tasks = NodePath.join(evidence, "tasks");
 const bin = NodePath.join(evidence, "bin");
-NodeFS.mkdirSync(repo);
+if (remote === undefined) NodeFS.mkdirSync(repo);
+else
+  NodeChildProcess.execFileSync("git", ["clone", "-q", `https://github.com/${remote}.git`, repo]);
 NodeFS.mkdirSync(bin);
 NodeFS.mkdirSync(NodePath.join(home, "userdata"), { recursive: true });
 const git = (...args: string[]) =>
@@ -71,24 +89,30 @@ const git = (...args: string[]) =>
     ],
     { encoding: "utf8" },
   ).trim();
-git("init", "-q");
 const docs = values.scenario === "docs";
 const expected = "# Quickstart\n\nRetries: 2\nTimeout: 30 seconds\n\nPreserve this footer.\n";
-NodeFS.writeFileSync(
-  NodePath.join(repo, "REFERENCE.md"),
-  "# Service limits\n\nRetries: 2\nTimeout: 30 seconds\n",
-);
-NodeFS.writeFileSync(
-  NodePath.join(repo, "GUIDE.md"),
-  "# Quickstart\n\nRetries: 9\nTimeout: 10 seconds\n\nPreserve this footer.\n",
-);
-NodeFS.writeFileSync(NodePath.join(repo, "calc.py"), "def add(a, b):\n    return a - b\n");
-NodeFS.writeFileSync(
-  NodePath.join(repo, "test_calc.py"),
-  "import unittest\nfrom calc import add\nclass Addition(unittest.TestCase):\n    def test_positive(self): self.assertEqual(add(4, 2), 6)\n    def test_negative(self): self.assertEqual(add(-4, -2), -6)\n    def test_zero(self): self.assertEqual(add(3, 0), 3)\n",
-);
-git("add", ".");
-git("commit", "-qm", "acceptance baseline");
+if (remote === undefined) git("init", "-q");
+if (remote === undefined)
+  NodeFS.writeFileSync(
+    NodePath.join(repo, "REFERENCE.md"),
+    "# Service limits\n\nRetries: 2\nTimeout: 30 seconds\n",
+  );
+if (remote === undefined)
+  NodeFS.writeFileSync(
+    NodePath.join(repo, "GUIDE.md"),
+    "# Quickstart\n\nRetries: 9\nTimeout: 10 seconds\n\nPreserve this footer.\n",
+  );
+if (remote === undefined)
+  NodeFS.writeFileSync(NodePath.join(repo, "calc.py"), "def add(a, b):\n    return a - b\n");
+if (remote === undefined)
+  NodeFS.writeFileSync(
+    NodePath.join(repo, "test_calc.py"),
+    "import unittest\nfrom calc import add\nclass Addition(unittest.TestCase):\n    def test_positive(self): self.assertEqual(add(4, 2), 6)\n    def test_negative(self): self.assertEqual(add(-4, -2), -6)\n    def test_zero(self): self.assertEqual(add(3, 0), 3)\n",
+  );
+if (remote === undefined) {
+  git("add", ".");
+  git("commit", "-qm", "acceptance baseline");
+}
 const commit = git("rev-parse", "HEAD");
 const issue = {
   number: 1,
@@ -96,14 +120,19 @@ const issue = {
   body: docs
     ? "Fix GUIDE.md retry count and timeout to match REFERENCE.md. Preserve every other byte. Only change GUIDE.md."
     : "Fix calc.py add(a,b) to return the sum. Positive, negative and zero inputs must pass test_calc.py. Only change calc.py.",
-  url: "https://github.com/local-fixture/enterprise-acceptance/issues/1",
+  url:
+    remote === undefined
+      ? "https://github.com/local-fixture/enterprise-acceptance/issues/1"
+      : `https://github.com/${remote}/issues/${values.issue}`,
 };
-// The executable only implements issue reads; every other GitHub command fails closed.
-NodeFS.writeFileSync(
-  NodePath.join(bin, "gh"),
-  `#!${process.execPath}\nif(process.argv.slice(2).join(' ')!==${JSON.stringify(`issue view ${issue.url} --json number,title,body,url`)})process.exit(91);\nprocess.stdout.write(${JSON.stringify(JSON.stringify(issue))});\n`,
-  { mode: 0o700 },
-);
+// Local mode: the fake executable only implements issue reads; every other GitHub command fails
+// closed. Remote mode uses the installed, authenticated `gh` for the real issue and PR.
+if (remote === undefined)
+  NodeFS.writeFileSync(
+    NodePath.join(bin, "gh"),
+    `#!${process.execPath}\nif(process.argv.slice(2).join(' ')!==${JSON.stringify(`issue view ${issue.url} --json number,title,body,url`)})process.exit(91);\nprocess.stdout.write(${JSON.stringify(JSON.stringify(issue))});\n`,
+    { mode: 0o700 },
+  );
 NodeFS.writeFileSync(
   NodePath.join(home, "userdata", "enterprise-pricing.json"),
   JSON.stringify({
@@ -128,7 +157,14 @@ const origin = `http://127.0.0.1:${address.port}`;
 const bootstrap = NodeCrypto.randomUUID();
 const server = NodeChildProcess.spawn(
   process.execPath,
-  ["apps/server/dist/bin.mjs", "start", "--bootstrap-fd", "3", "--log-level", "debug"],
+  [
+    values.server === "source" ? "apps/server/src/bin.ts" : "apps/server/dist/bin.mjs",
+    "start",
+    "--bootstrap-fd",
+    "3",
+    "--log-level",
+    "debug",
+  ],
   {
     cwd: root,
     detached: true,
@@ -312,16 +348,39 @@ try {
         );
         const files = git("diff", "--name-only", commit, state.draft.evidence.diffSha).split("\n");
         NodeAssert.deepEqual(files, [docs ? "GUIDE.md" : "calc.py"]);
+        let remotePublication: object | string = "not attempted";
+        if (remote !== undefined) {
+          const publish = { workflow: input, repository: remote, baseBranch: "main" };
+          const first = yield* client["enterprise.publishPullRequest"](publish);
+          // A second identical request must reconcile to the same PR, never create another.
+          const second = yield* client["enterprise.publishPullRequest"](publish);
+          NodeAssert.equal(second.number, first.number);
+          NodeAssert.equal(second.reconciled, true);
+          NodeAssert.equal(first.commitSha, state.draft.evidence.diffSha);
+          const listed = JSON.parse(
+            NodeChildProcess.execFileSync(
+              "gh",
+              ["pr", "list", "--repo", remote, "--head", first.headBranch, "--state", "all"].concat(
+                ["--json", "number,isDraft,headRefOid"],
+              ),
+              { encoding: "utf8" },
+            ),
+          ) as Array<{ number: number; isDraft: boolean; headRefOid: string }>;
+          NodeAssert.equal(listed.length, 1);
+          NodeAssert.ok(listed[0]!.isDraft);
+          NodeAssert.equal(listed[0]!.headRefOid, first.commitSha);
+          remotePublication = { first, second, pullRequestsForHead: listed.length };
+        }
         verdict = {
           passed: true,
           scenario: values.scenario,
-          issueSource: "local gh fixture; no remote access",
+          issueSource: remote === undefined ? "local gh fixture; no remote access" : issue.url,
           cloudModel: values.model,
           coderBackend: docs ? "ollama/qwen3-coder:30b" : values.model,
           stages,
           selections,
           verifiedCommit: state.draft.evidence.diffSha,
-          remotePublication: "not attempted",
+          remotePublication,
           repeatedAdvance: "ready",
         };
         return;

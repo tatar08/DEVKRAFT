@@ -1,0 +1,64 @@
+{
+  "passed": true,
+  "scenario": "code",
+  "issueSource": "https://github.com/tatar08/t3-enterprise-demo/issues/1",
+  "cloudModel": "gpt-6.1-sol",
+  "coderBackend": "gpt-6.1-sol",
+  "stages": [
+    {
+      "state": "running",
+      "role": "architect",
+      "revision": 0,
+      "threadId": "enterprise:58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc:architect"
+    },
+    {
+      "state": "running",
+      "role": "coder",
+      "revision": 0,
+      "threadId": "enterprise:58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc:coder"
+    },
+    {
+      "state": "running",
+      "role": "qa",
+      "revision": 0,
+      "threadId": "enterprise:58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc:qa"
+    },
+    {
+      "state": "ready",
+      "revision": 0
+    }
+  ],
+  "selections": [
+    {
+      "role": "architect",
+      "model": "gpt-6.1-sol"
+    },
+    {
+      "role": "coder",
+      "model": "gpt-6.1-sol"
+    },
+    {
+      "role": "qa",
+      "model": "gpt-6.1-sol"
+    }
+  ],
+  "verifiedCommit": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+  "remotePublication": {
+    "first": {
+      "url": "https://github.com/tatar08/t3-enterprise-demo/pull/2",
+      "number": 2,
+      "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "headBranch": "enterprise/pr-58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc-71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "reconciled": false
+    },
+    "second": {
+      "url": "https://github.com/tatar08/t3-enterprise-demo/pull/2",
+      "number": 2,
+      "commitSha": "71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "headBranch": "enterprise/pr-58b6f7fcede068bf520692b4b09ce02ca1c540cdfd5db09d113fb1558045a9fc-71c874401181eb8d8980b459dad59c9c7556c7d9",
+      "reconciled": true
+    },
+    "pullRequestsForHead": 1
+  },
+  "repeatedAdvance": "ready"
+}
