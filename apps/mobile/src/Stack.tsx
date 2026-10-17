@@ -125,7 +125,10 @@ import { UsageLimitAccountScreen } from "./features/usage/UsageLimitsPooled";
 import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
 import { SettingsNotificationsRouteScreen } from "./features/settings/SettingsNotificationsRouteScreen";
-import { SettingsRouteScreen } from "./features/settings/SettingsRouteScreen";
+import {
+  ApprovalsRouteScreen,
+  SettingsWithApprovals,
+} from "./features/enterprise/ApprovalsRouteScreen";
 import { SettingsThreadsRouteScreen } from "./features/settings/SettingsThreadsRouteScreen";
 import { SettingsEnvironmentFilterProvider } from "./features/settings/settings-environment-filter";
 import { ShowcaseCaptureCoordinator } from "./features/showcase/ShowcaseCaptureCoordinator";
@@ -224,11 +227,16 @@ const SettingsContentStack = createV5SheetStackNavigator({
   },
   screens: {
     Settings: createNativeStackScreen({
-      screen: SettingsRouteScreen,
+      screen: SettingsWithApprovals,
       linking: "",
       options: {
         title: "Settings",
       },
+    }),
+    SettingsApprovals: createNativeStackScreen({
+      screen: ApprovalsRouteScreen,
+      linking: "approvals",
+      options: { title: "Approvals" },
     }),
     SettingsEnvironments: createNativeStackScreen({
       screen: SettingsEnvironmentsRouteScreen,
