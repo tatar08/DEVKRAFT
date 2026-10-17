@@ -9,9 +9,12 @@ import * as Schema from "effect/Schema";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerSettings from "../serverSettings.ts";
 
-// Profiles and native deny-read behavior are verified against this CLI version.
+// Profiles and native deny-read behavior are verified against this CLI version. Re-run the
+// opt-in live probes (EnterpriseOllama.live.test.ts: workspace_read host-secret denial and
+// docs_write) before moving the pin; any other version fails closed.
+// 0.163.0: re-verified 17 October 2026 (previously 0.162.1).
 // Custom executable/home/arguments need their own probes before joining this MVP.
-export const ENTERPRISE_CODEX_VERSION = "codex-cli 0.162.1";
+export const ENTERPRISE_CODEX_VERSION = "codex-cli 0.163.0";
 
 /**
  * Only an unmodified default install is supported. `binaryPath === "codex"` is what makes probing

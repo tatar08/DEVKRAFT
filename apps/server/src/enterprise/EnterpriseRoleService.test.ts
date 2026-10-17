@@ -1,3 +1,4 @@
+import { ENTERPRISE_CODEX_VERSION } from "./EnterpriseCodexSupport.ts";
 import { ServerSettings as ServerSettingsSchema } from "@t3tools/contracts";
 import * as ServerSettings from "../serverSettings.ts";
 import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
@@ -447,7 +448,7 @@ const scenario = (options: {
                           ? { remote_host: "https://example.invalid" }
                           : {}),
                       })
-                    : "codex-cli 0.162.1",
+                    : ENTERPRISE_CODEX_VERSION,
                 stderr: "",
                 timedOut: false,
                 stdoutTruncated: false,

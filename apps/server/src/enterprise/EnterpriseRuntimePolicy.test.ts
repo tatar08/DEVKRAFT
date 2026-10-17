@@ -1,3 +1,4 @@
+import { ENTERPRISE_CODEX_VERSION } from "./EnterpriseCodexSupport.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -83,7 +84,7 @@ const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
           return {
             code: 0,
             stdout:
-              input.args?.[0] === "--version" ? "codex-cli 0.162.1" : '[{"name":"host-tool"}]',
+              input.args?.[0] === "--version" ? ENTERPRISE_CODEX_VERSION : '[{"name":"host-tool"}]',
             stderr: "",
             timedOut: false,
             stdoutTruncated: false,
