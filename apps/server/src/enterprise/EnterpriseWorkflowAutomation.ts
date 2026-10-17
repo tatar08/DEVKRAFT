@@ -12,7 +12,6 @@ import {
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
-import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -30,6 +29,7 @@ import {
 } from "./EnterpriseWorkflowConfiguration.ts";
 import { enterpriseSecretKinds } from "./EnterpriseSecretPolicy.ts";
 import { EnterpriseTenancy } from "./EnterpriseTenancy.ts";
+import { isEnterpriseSessionAuthorized } from "./EnterpriseSessionAuthorization.ts";
 
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
 const decodeScope = Schema.decodeUnknownEffect(EnterpriseReleaseWorkspaceInput);
@@ -38,7 +38,6 @@ const decodeRecord = Schema.decodeUnknownEffect(
 );
 const encodeRecord = Schema.encodeEffect(Schema.fromJsonString(EnterpriseWorkflowAutomationRecord));
 const isRoleError = Schema.is(EnterpriseRoleError);
-const required = ["orchestration:operate", "filesystem:write", "source-control:write"] as const;
 const status = (
   record: EnterpriseWorkflowAutomationRecord | undefined,
 ): EnterpriseWorkflowAutomationStatus => ({
@@ -94,14 +93,7 @@ const make = Effect.gen(function* () {
   const authorize = Effect.fn("EnterpriseWorkflowAutomation.authorize")(function* (
     sessionId: AuthSessionId,
   ) {
-    const session = yield* sessions.getById({ sessionId });
-    const now = yield* DateTime.now;
-    if (
-      session._tag === "None" ||
-      session.value.revokedAt !== null ||
-      DateTime.toEpochMillis(session.value.expiresAt) <= DateTime.toEpochMillis(now) ||
-      required.some((scope) => !session.value.scopes.includes(scope))
-    )
+    if (!(yield* isEnterpriseSessionAuthorized(sessions, sessionId)))
       return yield* new EnterpriseRoleError({ reason: "authorization_required" });
   });
   /**

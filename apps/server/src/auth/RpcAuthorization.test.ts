@@ -467,5 +467,5 @@ it.each(ENTERPRISE_WS_METHOD_LIST)("requires all three scopes for %s", (method) 
 
 it("covers the read-only merge check like every other Enterprise RPC", () => {
   expect(ENTERPRISE_WS_METHOD_LIST).toContain("enterprise.checkMerge");
-  expect(ENTERPRISE_WS_METHOD_LIST).toHaveLength(15);
+  expect(ENTERPRISE_WS_METHOD_LIST).toHaveLength(18);
 });

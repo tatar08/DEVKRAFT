@@ -1,5 +1,7 @@
 import {
   AgentHandoff,
+  type EnterpriseApprovalEntry,
+  type EnterpriseApprovalRecord,
   EnterpriseSnapshotGateFailure,
   EnterpriseSnapshotGateResult,
   EnterpriseWorkflowAutomationRecord,
@@ -26,6 +28,7 @@ import {
   decodeGatePlan,
   decodeSpecFile,
 } from "./EnterpriseWorkspaceArtifacts.ts";
+import * as Approvals from "./EnterpriseWorkspaceApprovals.ts";
 import * as Automation from "./EnterpriseWorkspaceAutomation.ts";
 import * as Checks from "./EnterpriseWorkspaceChecks.ts";
 import {
@@ -120,6 +123,25 @@ export class EnterpriseWorkspaceService extends Context.Service<
       readonly workspacesRoot: string;
       readonly record: EnterpriseWorkflowAutomationRecord;
     }) => Effect.Effect<void, EnterpriseWorkspaceRejected | EnterpriseWorkspaceError>;
+    /** Stored approval decisions for the task; evidence for revalidation, never authorization. */
+    readonly readApprovals: (input: {
+      readonly spec: TaskSpec;
+      readonly repositoryRoot: string;
+      readonly workspacesRoot: string;
+    }) => Effect.Effect<
+      EnterpriseApprovalRecord | undefined,
+      EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
+    >;
+    /** Appends one decision under the ownership lock; same session + commit replaces its earlier one. */
+    readonly appendApproval: (input: {
+      readonly spec: TaskSpec;
+      readonly repositoryRoot: string;
+      readonly workspacesRoot: string;
+      readonly entry: EnterpriseApprovalEntry;
+    }) => Effect.Effect<
+      EnterpriseApprovalRecord,
+      EnterpriseWorkspaceRejected | EnterpriseWorkspaceError
+    >;
     /** Binds the workflow configuration digest; a later call with a different digest is rejected. */
     readonly bindWorkflow: (input: {
       readonly spec: TaskSpec;
@@ -247,6 +269,8 @@ const make = Effect.gen(function* () {
     bindWorkflow: (input) => execute(Lifecycle.bindWorkflow(input)).pipe(Effect.asVoid),
     readAutomation: (input) => execute(Automation.readAutomation(input)),
     writeAutomation: (input) => execute(Automation.writeAutomation(input)),
+    readApprovals: (input) => execute(Approvals.readApprovals(input)),
+    appendApproval: (input) => execute(Approvals.appendApproval(input)),
     readSnapshotFailure: (input) => execute(Evidence.readSnapshotFailure(input)),
     readSnapshotGate: (input) => execute(Evidence.readSnapshotGate(input)),
     gateSnapshot: (input) => execute(Snapshot.gateSnapshot(input)),

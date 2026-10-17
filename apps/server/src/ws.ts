@@ -1,8 +1,10 @@
 import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
 import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
 import * as EnterpriseMergeCheck from "./enterprise/EnterpriseMergeCheck.ts";
+import * as EnterpriseApprovals from "./enterprise/EnterpriseApprovalService.ts";
 import {
   ENTERPRISE_WS_METHODS,
+  EnterpriseApprovalError,
   EnterpriseMergeCheckError,
   EnterprisePublicationError,
   EnterpriseRoleError,
@@ -557,6 +559,9 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
 // Separate automation handlers keep the RPC handler type inference bounded.
 const CoreWsRpcGroup = ServerWsRpcGroup.omit(
+  ENTERPRISE_WS_METHODS.getApproval,
+  ENTERPRISE_WS_METHODS.recordApproval,
+  ENTERPRISE_WS_METHODS.mergeTask,
   ENTERPRISE_WS_METHODS.startIssueWorkflow,
   ENTERPRISE_WS_METHODS.startWorkflow,
   ENTERPRISE_WS_METHODS.stopWorkflow,
@@ -3231,6 +3236,46 @@ const layerWsRpc = (
             input,
             () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
             service.start(input, currentSession.sessionId),
+          );
+      }),
+    ),
+    // Approvals and merges take the actor from the authenticated connection, never the payload.
+    ServerWsRpcGroup.toLayerHandler(
+      ENTERPRISE_WS_METHODS.getApproval,
+      Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
+        const approvals = yield* EnterpriseApprovals.EnterpriseApprovalService;
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseApprovalError({ reason: "tenant_not_allowed" }),
+            approvals.status(input),
+          );
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      ENTERPRISE_WS_METHODS.recordApproval,
+      Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
+        const approvals = yield* EnterpriseApprovals.EnterpriseApprovalService;
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseApprovalError({ reason: "tenant_not_allowed" }),
+            approvals.record(input, currentSession),
+          );
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      ENTERPRISE_WS_METHODS.mergeTask,
+      Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
+        const approvals = yield* EnterpriseApprovals.EnterpriseApprovalService;
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseApprovalError({ reason: "tenant_not_allowed" }),
+            approvals.merge(input, currentSession),
           );
       }),
     ),

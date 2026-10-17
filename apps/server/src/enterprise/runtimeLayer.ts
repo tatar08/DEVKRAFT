@@ -5,6 +5,7 @@ import type * as Threads from "../orchestration-v2/ThreadManagementService.ts";
 import * as AuthSessions from "../persistence/AuthSessions.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as Git from "../vcs/GitVcsDriver.ts";
+import * as Approvals from "./EnterpriseApprovalService.ts";
 import * as Issues from "./EnterpriseIssueService.ts";
 import * as MergeCheck from "./EnterpriseMergeCheck.ts";
 import * as IssueWorkflows from "./EnterpriseIssueWorkflowService.ts";
@@ -86,6 +87,9 @@ export const layer = <E1, R1, E2, R2>(deps: {
     layerWorkflowsProvided,
     layerRolesProvided,
     MergeCheck.layer.pipe(Layer.provide(layerRolesProvided)),
+    Approvals.layer.pipe(
+      Layer.provide(Layer.mergeAll(layerWorkflowsProvided, Workspace.layer, AuthSessions.layer)),
+    ),
     // Merged into the output so ws.ts handlers check tenants with the same operator allowlist.
   ).pipe(Layer.provideMerge(Tenancy.layer));
 };

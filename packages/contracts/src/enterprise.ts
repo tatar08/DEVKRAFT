@@ -638,6 +638,107 @@ export class EnterpriseMergeCheckError extends Schema.TaggedError<EnterpriseMerg
   }
 }
 
+/** Current approval policy. A recorded approval only counts under the version it was given for. */
+export const ENTERPRISE_APPROVAL_POLICY_VERSION = "enterprise-approval/1";
+/** Longest an approval stays valid; shorter values are allowed per decision. */
+export const ENTERPRISE_APPROVAL_MAX_MINUTES = 1440;
+
+/**
+ * One human decision, bound to the authenticated session that made it and to the exact verified
+ * commit and policy version. It is evidence for later revalidation, never authorization by itself.
+ */
+export const EnterpriseApprovalEntry = Schema.Struct({
+  sessionId: AuthSessionId,
+  subject: Identifier,
+  decision: Schema.Literals(["approve", "reject"]),
+  diffSha: CommitSha,
+  policyVersion: Identifier,
+  decidedAt: NonNegativeInt.check(Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)),
+  expiresAt: NonNegativeInt.check(Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)),
+});
+export type EnterpriseApprovalEntry = typeof EnterpriseApprovalEntry.Type;
+export const EnterpriseApprovalRecord = Schema.Struct({
+  version: Schema.Literal(1),
+  taskId: EnterpriseTaskId,
+  entries: Schema.Array(EnterpriseApprovalEntry).check(Schema.isMaxLength(256)),
+});
+export type EnterpriseApprovalRecord = typeof EnterpriseApprovalRecord.Type;
+
+export const EnterpriseGetApprovalInput = Schema.Struct({
+  workflow: EnterpriseAdvanceWorkflowInput,
+});
+export type EnterpriseGetApprovalInput = typeof EnterpriseGetApprovalInput.Type;
+export const EnterpriseRecordApprovalInput = Schema.Struct({
+  workflow: EnterpriseAdvanceWorkflowInput,
+  decision: Schema.Literals(["approve", "reject"]),
+  validForMinutes: Schema.optionalKey(
+    PositiveInt.check(Schema.isLessThanOrEqualTo(ENTERPRISE_APPROVAL_MAX_MINUTES)),
+  ),
+});
+export type EnterpriseRecordApprovalInput = typeof EnterpriseRecordApprovalInput.Type;
+
+/** Why a stored decision was not counted during revalidation. */
+export const EnterpriseApprovalIgnoredReason = Schema.Literals([
+  "stale_diff",
+  "policy_changed",
+  "expired",
+  "session_invalid",
+]);
+/** Revalidated approval state for the current verified commit; recomputed on every request. */
+export const EnterpriseApprovalStatus = Schema.Struct({
+  risk: RiskDecision,
+  evidence: PullRequestEvidence,
+  blockers: Schema.Array(EnterpriseApprovalBlocker),
+  requiredApprovers: Schema.Literals([1, 2]),
+  ignored: Schema.Array(
+    Schema.Struct({ sessionId: AuthSessionId, reason: EnterpriseApprovalIgnoredReason }),
+  ),
+});
+export type EnterpriseApprovalStatus = typeof EnterpriseApprovalStatus.Type;
+
+/** Merges the verified commit into a local branch by compare-and-swap. Never pushes. */
+export const EnterpriseMergeTaskInput = Schema.Struct({
+  workflow: EnterpriseAdvanceWorkflowInput,
+  targetBranch: EnterpriseCheckMergeInput.fields.targetBranch,
+  expectedTargetCommit: CommitSha,
+});
+export type EnterpriseMergeTaskInput = typeof EnterpriseMergeTaskInput.Type;
+export const EnterpriseMergeTaskResult = Schema.Struct({
+  targetRef: TrimmedNonEmptyString,
+  previousCommit: CommitSha,
+  mergeCommit: CommitSha,
+});
+export type EnterpriseMergeTaskResult = typeof EnterpriseMergeTaskResult.Type;
+
+export class EnterpriseApprovalError extends Schema.TaggedError<EnterpriseApprovalError>()(
+  "EnterpriseApprovalError",
+  {
+    reason: Schema.Literals([
+      "invalid_input",
+      "workflow_not_ready",
+      "tenant_not_allowed",
+      "authorization_required",
+      "blocked",
+      "conflict",
+      "busy",
+      "target_moved",
+      "target_checked_out",
+      "merge_driver",
+      "invalid_ref",
+      "storage_failed",
+      "merge_failed",
+    ]),
+    blockers: Schema.optionalKey(Schema.Array(EnterpriseApprovalBlocker)),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Enterprise approval rejected: ${this.reason}${
+      this.blockers ? ` (${this.blockers.join(", ")})` : ""
+    }.`;
+  }
+}
+
 /**
  * Every Enterprise RPC method, in one place so the RPC group, authorization and instrumentation
  * cannot drift apart.
@@ -658,6 +759,9 @@ export const ENTERPRISE_WS_METHODS = {
   launchRole: "enterprise.launchRole",
   releaseWorkspace: "enterprise.releaseWorkspace",
   checkMerge: "enterprise.checkMerge",
+  getApproval: "enterprise.getApproval",
+  recordApproval: "enterprise.recordApproval",
+  mergeTask: "enterprise.mergeTask",
 } as const;
 export type EnterpriseWsMethod = (typeof ENTERPRISE_WS_METHODS)[keyof typeof ENTERPRISE_WS_METHODS];
 export const ENTERPRISE_WS_METHOD_LIST: ReadonlyArray<EnterpriseWsMethod> =
