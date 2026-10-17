@@ -1,3 +1,6 @@
+import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import { EnterpriseApprovalError } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -112,7 +115,12 @@ export function WorkOrderDetail({
     setApproval(null);
     const result = await getApproval({ environmentId, input: { workflow: order.workflow } });
     if (result._tag === "Success") setApproval(result.value);
-    else setMessage("Could not revalidate evidence. Retry Refresh.");
+    else
+      setMessage(
+        isApprovalBusy(squashAtomCommandFailure(result))
+          ? "Another operation is running. Try Refresh in a moment."
+          : "Could not revalidate evidence. Retry Refresh.",
+      );
   }
   const open = useEffectEvent(() => {
     if (connected && canRead) void run(refresh);
@@ -138,7 +146,11 @@ export function WorkOrderDetail({
       onChanged();
     } else {
       setApproval(null);
-      setMessage("Decision was not recorded. Refresh and try again.");
+      setMessage(
+        isApprovalBusy(squashAtomCommandFailure(result))
+          ? "Another operation is running. Try Refresh in a moment."
+          : "Decision was not recorded. Refresh and try again.",
+      );
     }
   }
   const mergeReason =
@@ -505,4 +517,11 @@ function ignoredReason(reason: string): ReactNode {
       session_invalid: "The deciding session is no longer valid.",
     }[reason] ?? reason
   );
+}
+
+const isApprovalError = Schema.is(EnterpriseApprovalError);
+
+/** Contention is retryable and must not look like invalid evidence. */
+function isApprovalBusy(error: unknown) {
+  return isApprovalError(error) && error.reason === "busy";
 }

@@ -90,7 +90,7 @@ const make = Effect.gen(function* () {
     const controlDir = path.dirname(architect.worktreePath!);
     const pullRequest = yield* publication.published({ controlDir });
     const stored = yield* workspace
-      .readApprovals({
+      .peekApprovals({
         spec: workflow.task,
         repositoryRoot: workflow.repositoryRoot,
         workspacesRoot: workflow.workspacesRoot,

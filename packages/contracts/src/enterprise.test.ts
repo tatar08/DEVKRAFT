@@ -262,9 +262,9 @@ describe("enterprise evidence gate", () => {
     );
   });
   it.each(["pending", "rejected"] as const)("blocks a %s decision", (decision) => {
-    assert.include(
-      getEnterpriseApprovalBlockers({ ...gate, risk: { ...risk, decision } }),
-      "approval_required",
+    assert.deepEqual(
+      getEnterpriseApprovalBlockers({ ...gate, risk: { ...risk, decision, expiresAt: 0 } }),
+      ["approval_required"],
     );
   });
   it("revalidates expiry and policy after reconnect", () => {

@@ -2,6 +2,7 @@ import {
   ENTERPRISE_APPROVAL_MAX_MINUTES,
   ENTERPRISE_APPROVAL_POLICY_VERSION,
   EnterpriseApprovalError,
+  EnterpriseRoleError,
   EnterpriseApprovalStatus,
   EnterpriseGetApprovalInput,
   EnterpriseMergeTaskInput,
@@ -65,6 +66,13 @@ export class EnterpriseApprovalService extends Context.Service<
   }
 >()("t3/enterprise/EnterpriseApprovalService") {}
 
+const isWorkspaceRejected = Schema.is(Workspace.EnterpriseWorkspaceRejected);
+const isRoleError = Schema.is(EnterpriseRoleError);
+
+/** Workspace contention can be wrapped by the workflow/role boundary; keep it retryable. */
+const isBusy = (cause: unknown): boolean =>
+  isWorkspaceRejected(cause) ? cause.reason === "busy" : isRoleError(cause) && isBusy(cause.cause);
+
 const make = Effect.gen(function* () {
   const workflows = yield* Workflows.EnterpriseWorkflowService;
   const workspace = yield* Workspace.EnterpriseWorkspaceService;
@@ -81,7 +89,7 @@ const make = Effect.gen(function* () {
   /** The verified draft for the current commit; re-runs the deterministic gate, never dispatches. */
   const verified = (workflow: EnterpriseAdvanceWorkflowInput) =>
     workflows.verify(workflow).pipe(
-      Effect.mapError((cause) => fail("workflow_not_ready", cause)),
+      Effect.mapError((cause) => fail(isBusy(cause) ? "busy" : "workflow_not_ready", cause)),
       Effect.flatMap((state) =>
         state.state === "ready"
           ? Effect.succeed(state.draft)
@@ -122,7 +130,7 @@ const make = Effect.gen(function* () {
     const required = requiredEnterpriseApprovers(classification.tier);
     const record = yield* workspace
       .readApprovals(scope(workflow))
-      .pipe(Effect.mapError((cause) => fail("storage_failed", cause)));
+      .pipe(Effect.mapError((cause) => fail(isBusy(cause) ? "busy" : "storage_failed", cause)));
     const now = DateTime.toEpochMillis(yield* DateTime.now);
     const ignored: Array<{ sessionId: AuthSessionId; reason: EnterpriseApprovalStatusIgnored }> =
       [];
@@ -218,7 +226,7 @@ const make = Effect.gen(function* () {
           expiresAt: now + minutes * 60_000,
         },
       })
-      .pipe(Effect.mapError((cause) => fail("storage_failed", cause)));
+      .pipe(Effect.mapError((cause) => fail(isBusy(cause) ? "busy" : "storage_failed", cause)));
     return yield* evaluate(input.workflow);
   });
 

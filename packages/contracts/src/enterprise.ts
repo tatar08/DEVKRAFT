@@ -198,9 +198,10 @@ export function getEnterpriseApprovalBlockers(input: {
     blockers.push("budget_exceeded");
   if (risk.decision !== "approved") blockers.push("approval_required");
   if (
-    !Number.isSafeInteger(input.nowEpochMillis) ||
-    input.nowEpochMillis < 0 ||
-    risk.expiresAt <= input.nowEpochMillis
+    risk.decision === "approved" &&
+    (!Number.isSafeInteger(input.nowEpochMillis) ||
+      input.nowEpochMillis < 0 ||
+      risk.expiresAt <= input.nowEpochMillis)
   )
     blockers.push("approval_expired");
   if (risk.policyVersion !== input.currentPolicyVersion) blockers.push("policy_changed");

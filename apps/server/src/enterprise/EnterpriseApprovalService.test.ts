@@ -4,6 +4,7 @@ import {
   AuthSessionId,
   EnterpriseAdvanceWorkflowInput,
   EnterprisePullRequestDraft,
+  EnterpriseRoleError,
   type EnterpriseAdvanceWorkflowResult,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -28,7 +29,7 @@ const bob = { sessionId: AuthSessionId.make("session:bob"), subject: "one-time-t
  * Real Git, WorkspaceService and MergeService. Only the V2 workflow and the auth session store are
  * fakes, so revalidation can be driven: a new verified commit, a revoked session, a moved clock.
  */
-const setup = (options: { readonly taskFile?: string } = {}) =>
+const setup = (options: { readonly taskFile?: string; readonly busy?: boolean } = {}) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const git = yield* Git.GitVcsDriver;
@@ -129,11 +130,18 @@ const setup = (options: { readonly taskFile?: string } = {}) =>
     const workflows = Layer.succeed(Workflows.EnterpriseWorkflowService, {
       advance: () => Effect.die("approvals must not advance the workflow"),
       verify: () =>
-        Effect.sync((): EnterpriseAdvanceWorkflowResult => ({
-          state: "ready",
-          revision: 0,
-          draft: draftFor(verifiedCommit),
-        })),
+        options.busy
+          ? Effect.fail(
+              new EnterpriseRoleError({
+                reason: "launch_failed",
+                cause: new Workspace.EnterpriseWorkspaceRejected({ reason: "busy" }),
+              }),
+            )
+          : Effect.sync((): EnterpriseAdvanceWorkflowResult => ({
+              state: "ready",
+              revision: 0,
+              draft: draftFor(verifiedCommit),
+            })),
     });
     const service = yield* Approvals.EnterpriseApprovalService.pipe(
       Effect.provide(
@@ -150,6 +158,7 @@ const setup = (options: { readonly taskFile?: string } = {}) =>
     );
     return {
       service,
+      holdLock: fs.makeDirectory(`${owned.worktreePath}/../operation.lock`),
       workflow,
       base,
       run: (args: ReadonlyArray<string>) => run(repositoryRoot, args),
@@ -182,7 +191,7 @@ describe("EnterpriseApprovalService", () => {
         const pending = yield* env.service.status({ workflow: env.workflow });
         assert.equal(pending.risk.decision, "pending");
         assert.equal(pending.risk.tier, 1);
-        assert.include(pending.blockers, "approval_required");
+        assert.deepEqual(pending.blockers, ["approval_required"]);
         const refused = yield* env.merge(alice).pipe(Effect.flip);
         assert.equal(refused.reason, "blocked");
         assert.equal((yield* env.run(["rev-parse", "main"])).stdout.trim(), env.base);
@@ -197,6 +206,43 @@ describe("EnterpriseApprovalService", () => {
           .trim()
           .split(" ");
         assert.deepEqual(parents.slice(1), [env.base, approved.evidence.diffSha]);
+      }),
+    ),
+  );
+
+  it.effect("reports wrapped workspace contention as retryable busy", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup({ busy: true });
+        assert.equal(
+          (yield* env.service.status({ workflow: env.workflow }).pipe(Effect.flip)).reason,
+          "busy",
+        );
+        assert.equal(
+          (yield* env.service
+            .record({ workflow: env.workflow, ...approve() }, alice)
+            .pipe(Effect.flip)).reason,
+          "busy",
+        );
+      }),
+    ),
+  );
+
+  it.effect("reports contention when reading or appending stored approvals as busy", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup();
+        yield* env.holdLock;
+        assert.equal(
+          (yield* env.service.status({ workflow: env.workflow }).pipe(Effect.flip)).reason,
+          "busy",
+        );
+        assert.equal(
+          (yield* env.service
+            .record({ workflow: env.workflow, ...approve() }, alice)
+            .pipe(Effect.flip)).reason,
+          "busy",
+        );
       }),
     ),
   );
@@ -239,6 +285,7 @@ describe("EnterpriseApprovalService", () => {
         const status = yield* env.service.status({ workflow: env.workflow });
         assert.equal(status.risk.decision, "pending");
         assert.equal(status.ignored[0]?.reason, "expired");
+        assert.deepEqual(status.blockers, ["approval_required"]);
       }),
     ),
   );

@@ -96,6 +96,15 @@ describe("enterprise verify CLI", () => {
       assert.include(error.message, "approval_expired");
     }),
   );
+  it.effect("reports pending approval without claiming it expired", () =>
+    Effect.gen(function* () {
+      const error = yield* runCli(
+        JSON.stringify({ ...bundle, risk: { ...bundle.risk, decision: "pending", expiresAt: 0 } }),
+      ).pipe(Effect.flip);
+      assert.include(error.message, "approval_required");
+      assert.notInclude(error.message, "approval_expired");
+    }),
+  );
   it.effect("rejects malformed data without exposing its content", () =>
     Effect.gen(function* () {
       const error = yield* runCli('{"secret":"private-test-value"}').pipe(Effect.flip);

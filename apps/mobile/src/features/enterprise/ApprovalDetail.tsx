@@ -1,3 +1,6 @@
+import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import { EnterpriseApprovalError } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { useAtomValue } from "@effect/atom-react";
 import type {
   EnterpriseApprovalStatus,
@@ -75,9 +78,11 @@ export function ApprovalDetail({
         }
       } else
         setMessage(
-          decision
-            ? "Decision was not acknowledged. Refresh evidence before retrying."
-            : "Could not revalidate evidence. Try Refresh.",
+          isApprovalBusy(squashAtomCommandFailure(result))
+            ? "Another operation is running. Try Refresh in a moment."
+            : decision
+              ? "Decision was not acknowledged. Refresh evidence before retrying."
+              : "Could not revalidate evidence. Try Refresh.",
         );
     } finally {
       lock.current = false;
@@ -152,4 +157,11 @@ export function ApprovalDetail({
       {reason ? <Text className="p-4 text-foreground-muted">{reason}</Text> : null}
     </>
   );
+}
+
+const isApprovalError = Schema.is(EnterpriseApprovalError);
+
+/** Contention is retryable and must not look like invalid evidence. */
+function isApprovalBusy(error: unknown) {
+  return isApprovalError(error) && error.reason === "busy";
 }

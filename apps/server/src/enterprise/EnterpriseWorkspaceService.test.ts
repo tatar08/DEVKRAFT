@@ -249,6 +249,54 @@ describe("EnterpriseWorkspaceService", () => {
       }),
     ),
   );
+  it.effect("peeks approval evidence while the gate operation lock is held", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup;
+        const owned = yield* env.service.prepare(env);
+        const lock = env.path.join(env.path.dirname(owned.worktreePath), "operation.lock");
+        const file = env.path.join(env.path.dirname(owned.worktreePath), "approvals.json");
+        const record = { version: 1 as const, taskId: env.spec.taskId, entries: [] };
+        yield* env.fs.writeFileString(file, JSON.stringify(record));
+        yield* env.fs.makeDirectory(lock);
+        assert.deepEqual(yield* env.service.peekApprovals(env), record);
+        const error = yield* env.service.readApprovals(env).pipe(Effect.flip);
+        assert.equal(error._tag, "EnterpriseWorkspaceRejected");
+        if (error._tag === "EnterpriseWorkspaceRejected") assert.equal(error.reason, "busy");
+        assert.isTrue(yield* env.fs.exists(lock));
+      }),
+    ),
+  );
+
+  it.effect("refuses symlinked, oversized and wrong-task approval records when peeking", () =>
+    provide(
+      Effect.gen(function* () {
+        const env = yield* setup;
+        const owned = yield* env.service.prepare(env);
+        const file = env.path.join(env.path.dirname(owned.worktreePath), "approvals.json");
+        const other = env.path.join(env.workspacesRoot, "other.json");
+        yield* env.fs.writeFileString(
+          other,
+          JSON.stringify({ version: 1, taskId: env.spec.taskId, entries: [] }),
+        );
+        yield* env.fs.symlink(other, file);
+        const symlink = yield* env.service.peekApprovals(env).pipe(Effect.flip);
+        assert.equal(symlink._tag, "EnterpriseWorkspaceRejected");
+        yield* env.fs.remove(file);
+        for (const contents of [
+          " ".repeat(1_048_577),
+          JSON.stringify({ version: 1, taskId: "task:other", entries: [] }),
+        ]) {
+          yield* env.fs.writeFileString(file, contents);
+          const error = yield* env.service.peekApprovals(env).pipe(Effect.flip);
+          assert.equal(error._tag, "EnterpriseWorkspaceRejected");
+          if (error._tag === "EnterpriseWorkspaceRejected")
+            assert.equal(error.reason, "ownership_mismatch");
+        }
+      }),
+    ),
+  );
+
   it.effect("refuses cleanup while an operation lock exists", () =>
     provide(
       Effect.gen(function* () {
