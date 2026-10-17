@@ -118,7 +118,7 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 - No function exceeds about 120 lines.
 - The test baseline passes with `EnterpriseRoleService.test.ts` unchanged.
 
-### Gemini — G2: bound the automation dedupe map (priority: low)
+### Gemini — G2: bound the automation dedupe map — closed (not needed, see decisions below)
 
 **Files you may edit:** `apps/server/src/enterprise/EnterpriseWorkflowAutomation.ts`, plus new tests.
 
@@ -126,11 +126,16 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 
 **Do:** delete an entry when a workflow stops (ready, blocked, error or cancelled) or is no longer registered. Add a focused test that the map does not keep stopped tasks. Behavior must not change otherwise.
 
-### Not assigned: needs a decision from the user first
+### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
-- **Per-session tenant binding.** The environment-level boundary (ADR-003) is in place. Binding tenants to authenticated users needs a pairing-level claim and a design review.
-- **Live remote acceptance (Phase 2).** The user deferred creating a real GitHub repository or PR on 17 October 2026.
-- **Approval persistence (Phase 4/5).** This needs a design review before any code.
+| Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------ | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-session tenant binding           | **Deferred**           | The MVP is single-operator. Session `subject` values are generic, not identities, so deriving tenants from them would give false assurance. When mutually untrusted users are in scope, issue an immutable server-side tenant claim at pairing, carry it through grant redemption into the session, and check it together with the ADR-003 allowlist. |
+| Live GitHub PR acceptance            | **Deferred**           | The user's instruction "test locally, create nothing on GitHub" still stands. Remote publication and reconciliation remain an open acceptance gate.                                                                                                                                                                                                   |
+| Pushing `enterprise/mvp`             | **Not pushed**         | `origin` is upstream `pingdotgg/t3code`. Push only on the user's request, to a verified remote for their own fork.                                                                                                                                                                                                                                    |
+| Merged worktrees                     | **Removed**            | Each was checked for unique commits, changes, non-dependency ignored files and running processes. Branches are kept.                                                                                                                                                                                                                                  |
+| G2 (bound the automation `seen` map) | **Closed, not needed** | The sweep already drops keys of inactive workflows. A cap or TTL could evict dedupe entries and repeat work.                                                                                                                                                                                                                                          |
+| Risk found by Codex                  | **Fixed**              | Automation checked authorization only after the no-change shortcut, so a revoked workflow stayed "enabled". It is now re-authorized on every tick, with a regression test.                                                                                                                                                                            |
 
 ## 4. Report template (paste into the hand-back message)
 
