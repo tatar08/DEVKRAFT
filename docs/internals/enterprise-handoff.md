@@ -143,6 +143,26 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 
 **If a defense gap is found:** do not fix it. Write a test that fails for that case, mark it with `it.fails` and the comment `// SECURITY GAP:`, and list the gap in your report.
 
+### Codex — C4: Phase 4 restart drill script (priority: high)
+
+**Files you may edit:**
+
+- `apps/server/scripts/verify-enterprise-live.ts`
+- new `apps/server/scripts/enterpriseLiveHarness.ts`
+- new `apps/server/scripts/verify-enterprise-restart-drill.ts`
+
+**Goal:** the Phase 4 exit drills for server restart and crash, built on the existing live harness. Your sandbox has no network and cannot run model turns, so the supervisor runs the drill live. Your job is to make it correct and typecheck clean.
+
+**Do:**
+
+1. Move the reusable parts of `verify-enterprise-live.ts` into `enterpriseLiveHarness.ts`: fixture repository, fake read-only `gh`, price file, server spawn plus "startup phase: complete" wait, bootstrap token exchange, project creation, WebSocket RPC layer, and kill of the process group. Keep `verify-enterprise-live.ts` behavior and CLI flags unchanged.
+2. Add `verify-enterprise-restart-drill.ts`, which uses the local fixture only (no GitHub writes) and `--server source|dist`. It runs two scenarios against **one persistent T3 home**, restarting the server process each time and pairing a new session from a new bootstrap token after each restart:
+   - **`between-stages`:** start the code workflow and wait until the Coder run is completed with a ready checkpoint. `SIGKILL` the server process group, restart it with the same home, then keep calling `enterprise.advanceWorkflow` until `ready`. **Assert:** exactly one run on each role thread whose `userMessageId` ends in `:initial`, no extra role threads, and the same verified commit after one more `advanceWorkflow`.
+   - **`mid-turn`:** as soon as the Coder run is `running`, `SIGKILL` the process group and restart. **Assert:** the Coder run is not silently replayed; the workflow ends in `blocked` (`failed_run`), or in `running` with the same single run, but never with a second `:initial` run. Record which outcome happened.
+3. Write `restart-drill-verdict.json` (scenario results, thread run counts, verified commits) into the scratch evidence directory, as `verify-enterprise-live.ts` does with its verdict.
+
+**Done when:** typecheck and lint are clean, and `verify-enterprise-live.ts --help` style argument validation still works. Do not run model turns.
+
 ### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
 | Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
