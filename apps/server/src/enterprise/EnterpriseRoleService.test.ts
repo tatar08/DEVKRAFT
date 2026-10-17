@@ -831,6 +831,11 @@ const scenario = (options: {
                 auto &&
                 ["revoked", "expired", "scopes", "tenant_revoked"].includes(options.automation!)
               ) {
+                // Two ticks settle the dedupe fingerprint: revocation must still stop the workflow
+                // on a tick where no thread event changed.
+                yield* auto.sweep;
+                yield* auto.sweep;
+                const settled = launches.length;
                 // Operator removed the tenant from the allowlist while the workflow was running.
                 if (options.automation === "tenant_revoked") tenantRevoked = true;
                 else authMode = options.automation as "revoked" | "expired" | "scopes";
@@ -838,7 +843,7 @@ const scenario = (options: {
                 const stopped = yield* auto.status(request);
                 assert.isFalse(stopped.enabled);
                 assert.equal(stopped.stopReason, "authorization_required");
-                assert.lengthOf(launches, 2);
+                assert.lengthOf(launches, settled);
                 return first;
               }
               const architect = stored.get(architectId)!;

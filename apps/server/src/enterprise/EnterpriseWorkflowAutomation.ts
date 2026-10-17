@@ -258,6 +258,19 @@ const make = Effect.gen(function* () {
       yield* Effect.gen(function* () {
         const record = yield* candidate(thread);
         if (record === undefined || (!record.enabled && record.stopReason !== "cancelled")) return;
+        // Authorize before the no-change shortcut: revoking the session or tenant must stop the
+        // workflow on the next tick even when no thread event has changed since the last one.
+        const authorized = yield* authorizeRecord(record).pipe(Effect.result);
+        if (authorized._tag === "Failure") {
+          yield* workspace.writeAutomation({
+            ...params(record.input),
+            record: { ...record, enabled: false, stopReason: "authorization_required" },
+          });
+          yield* Effect.logWarning("enterprise.workflow.automation-stopped", {
+            reason: "authorization_required",
+          });
+          return;
+        }
         const key = yield* enterpriseTaskKey(record.input.task);
         const members = shell.threads
           .filter((member) => member.id.startsWith(`enterprise:${key}:`))
@@ -271,22 +284,11 @@ const make = Effect.gen(function* () {
         if (seen.get(key) === fingerprint) return;
         if (record.stopReason === "cancelled") {
           // Leave intent intact on dispatch failure so the next scheduler tick can retry.
-          const authorized = yield* authorizeRecord(record).pipe(Effect.result);
-          if (authorized._tag === "Failure") {
-            yield* workspace.writeAutomation({
-              ...params(record.input),
-              record: { ...record, enabled: false, stopReason: "authorization_required" },
-            });
-            return;
-          }
           yield* dispatchCancellation(record.input);
           seen.set(key, fingerprint);
           return;
         }
-        const outcome = yield* authorizeRecord(record).pipe(
-          Effect.andThen(workflow.advance(record.input)),
-          Effect.result,
-        );
+        const outcome = yield* workflow.advance(record.input).pipe(Effect.result);
         if (outcome._tag === "Failure") {
           const cause = outcome.failure;
           if (
