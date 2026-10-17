@@ -117,3 +117,39 @@ It publishes a pinned checkpoint to a new deterministic remote branch and never 
 
 - Binding a tenant to an authenticated session needs a tenant claim issued at pairing time.
 - The local CLI has no server config, so it always uses the default (`local` only).
+
+## ADR-004: Authenticated approvals revalidated on every use
+
+**Decision.** Merge approval comes from authenticated people and is recomputed every time it is read. It is never trusted from a stored flag or from a client.
+
+- **Recording.** `enterprise.recordApproval` takes the actor from the WebSocket connection's session, never from the payload. Each [entry](../../packages/contracts/src/enterprise.ts) pins:
+  - `sessionId` and `subject`
+  - `approve` or `reject`
+  - the verified `diffSha` from a fresh `EnterpriseWorkflowService.verify`, which re-runs the deterministic gate
+  - `ENTERPRISE_APPROVAL_POLICY_VERSION`
+  - `decidedAt` and `expiresAt`, at most 24 hours later
+
+  Entries are stored in `approvals.json` beside the ownership manifest, appended under the task operation lock. A newer decision from the same session for the same commit replaces its earlier one.
+
+- **Revalidation.** [`EnterpriseApprovalService`](../../apps/server/src/enterprise/EnterpriseApprovalService.ts) recomputes the `RiskDecision` from scratch on every `getApproval`, `recordApproval` and `mergeTask`. An entry counts only if all of these hold:
+  - its commit equals the current verified commit
+  - its policy version is current
+  - it has not expired by the server clock
+  - its session is still unrevoked, unexpired and holds all three Enterprise scopes, re-read from the auth repository
+
+  Ignored entries are reported with a reason. A restart, a reconnect, a new Coder revision or a revoked session therefore cannot revive an old approval.
+
+- **Risk policy.** [`EnterpriseRiskPolicy`](../../apps/server/src/enterprise/EnterpriseRiskPolicy.ts) classifies the server's own diff of base → verified commit:
+  - **Tier 2, two distinct approving sessions:** migrations, CI/deploy, permissions/CODEOWNERS, dependency manifests and lockfiles, auth, billing, secrets, infrastructure and network policy.
+  - **Tier 1, one approving session:** everything else.
+
+  There is no tier 0 and no auto-approval. Any valid rejection wins.
+
+- **Merge.** `enterprise.mergeTask` proceeds only with zero `getEnterpriseApprovalBlockers` (commit, checks, security scan, known cost within budget, approval, expiry, policy). It then calls the existing compare-and-swap merge service, which re-checks the blockers with its own clock, refuses a moved target and never pushes.
+
+**Why not a V2 event.** V2 events and projections are thread-scoped and replayed by three clients. An Enterprise approval is task-scoped and must be revalidated against live auth state anyway. Adding approval events would change the replay contracts for every client without making revalidation unnecessary. The approval file is therefore a scoped control artifact, like gate evidence: audit input, never authorization by itself.
+
+**Known limits.**
+
+- "Distinct approvers" means distinct authenticated sessions. Until tenant and identity claims are bound at pairing (ADR-003 follow-up), one person holding two sessions can satisfy tier 2.
+- Path rules are deliberately broad but are not a semantic analysis of the change.
