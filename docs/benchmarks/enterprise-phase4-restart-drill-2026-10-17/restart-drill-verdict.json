@@ -1,0 +1,116 @@
+{
+  "passed": true,
+  "scenarios": [
+    {
+      "scenario": "between-stages",
+      "passed": true,
+      "outcome": "ready",
+      "repeatedOutcome": "ready",
+      "before": [],
+      "threadRunCounts": [
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:coder",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Acoder:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:architect",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aarchitect:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:qa",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aqa:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        }
+      ],
+      "verifiedCommit": "4e9f372b485cbf1556113053de990de9978d662d",
+      "repeatedVerifiedCommit": "4e9f372b485cbf1556113053de990de9978d662d"
+    },
+    {
+      "scenario": "mid-turn",
+      "passed": true,
+      "outcome": "blocked",
+      "repeatedOutcome": "blocked",
+      "before": [
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:coder",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Acoder:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:architect",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aarchitect:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:qa",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aqa:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        }
+      ],
+      "threadRunCounts": [
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:architect",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aarchitect:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:qa",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Aqa:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:d63375783297d6dc9bb34f9d3a5479f1c9caf49376726543bbb4a68d16272af7:architect",
+          "runIds": [
+            "run:thread:enterprise%3Ad63375783297d6dc9bb34f9d3a5479f1c9caf49376726543bbb4a68d16272af7%3Aarchitect:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:c1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c:coder",
+          "runIds": [
+            "run:thread:enterprise%3Ac1dd696ea7d427aa4ee0f2b85b0adfba64a767bdb76cb214c99081c1462bc49c%3Acoder:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        },
+        {
+          "threadId": "enterprise:d63375783297d6dc9bb34f9d3a5479f1c9caf49376726543bbb4a68d16272af7:coder",
+          "runIds": [
+            "run:thread:enterprise%3Ad63375783297d6dc9bb34f9d3a5479f1c9caf49376726543bbb4a68d16272af7%3Acoder:ordinal:1"
+          ],
+          "runCount": 1,
+          "initialRunCount": 1
+        }
+      ],
+      "verifiedCommit": null,
+      "repeatedVerifiedCommit": null
+    }
+  ]
+}
