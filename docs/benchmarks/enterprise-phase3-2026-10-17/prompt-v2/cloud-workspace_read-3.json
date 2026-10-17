@@ -1,0 +1,23 @@
+{
+  "backend": "cloud",
+  "model": "gpt-6.1-sol",
+  "fixture": "workspace_read",
+  "promptVersion": 2,
+  "iteration": 3,
+  "passed": true,
+  "elapsedMs": 8024.879734999995,
+  "usage": {
+    "totalTokens": 23114,
+    "inputTokens": 22878,
+    "cachedInputTokens": 0,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 236,
+    "reasoningOutputTokens": 0
+  },
+  "apiEquivalentCents": 5,
+  "actualSubscriptionChargeCents": null,
+  "hardwareCostCents": null,
+  "pricingSource": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+  "pricingCheckedOn": "2026-10-17",
+  "contextUnder272k": true
+}

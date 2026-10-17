@@ -1,0 +1,86 @@
+{
+  "repetitions": 3,
+  "results": [
+    {
+      "backend": "cloud",
+      "models": ["gpt-6.1-sol"],
+      "promptVersions": [2],
+      "samples": 15,
+      "passed": 15,
+      "failed": 0,
+      "passRate": 1,
+      "medianElapsedMs": 8526.840803999992,
+      "totalElapsedMs": 171154.838983,
+      "apiEquivalentCents": 53,
+      "fixtures": [
+        {
+          "fixture": "inference",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "workspace_read",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "docs_write",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "docs_revision",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "docs_consistency",
+          "passed": 3,
+          "total": 3
+        }
+      ]
+    },
+    {
+      "backend": "local",
+      "models": ["ollama/qwen3-coder:30b"],
+      "promptVersions": [2],
+      "samples": 15,
+      "passed": 13,
+      "failed": 2,
+      "passRate": 0.8666666666666667,
+      "medianElapsedMs": 6775.250094000001,
+      "totalElapsedMs": 125587.501763,
+      "apiEquivalentCents": 0,
+      "fixtures": [
+        {
+          "fixture": "inference",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "workspace_read",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "docs_write",
+          "passed": 3,
+          "total": 3
+        },
+        {
+          "fixture": "docs_revision",
+          "passed": 1,
+          "total": 3
+        },
+        {
+          "fixture": "docs_consistency",
+          "passed": 3,
+          "total": 3
+        }
+      ]
+    }
+  ],
+  "actualSubscriptionChargeCents": null,
+  "hardwareCostCents": null,
+  "interpretation": "Synthetic scoped tasks; separate native turns; no savings or production-quality claim. All failures included. Local zero provider price excludes hardware/electricity. API-equivalent totals sum per-turn rounded cents."
+}

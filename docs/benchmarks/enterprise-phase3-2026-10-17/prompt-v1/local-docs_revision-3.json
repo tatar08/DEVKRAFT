@@ -1,0 +1,22 @@
+{
+  "backend": "local",
+  "model": "ollama/qwen3-coder:30b",
+  "fixture": "docs_revision",
+  "iteration": 3,
+  "passed": false,
+  "elapsedMs": 7310.846651,
+  "usage": {
+    "totalTokens": 37215,
+    "inputTokens": 36822,
+    "cachedInputTokens": 35291,
+    "cacheWriteInputTokens": 0,
+    "outputTokens": 393,
+    "reasoningOutputTokens": 0
+  },
+  "apiEquivalentCents": 0,
+  "actualSubscriptionChargeCents": null,
+  "hardwareCostCents": null,
+  "pricingSource": "local inference; hardware and electricity excluded",
+  "pricingCheckedOn": "2026-10-17",
+  "contextUnder272k": true
+}
