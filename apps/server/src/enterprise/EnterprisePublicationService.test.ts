@@ -177,7 +177,8 @@ const scenario = (
         yield* fs.makeDirectory(`${control}/publication.lock`).pipe(Effect.orDie);
       const first = yield* service.publish(input).pipe(Effect.result);
       const second = yield* service.publish(input).pipe(Effect.result);
-      return { first, second };
+      const published = yield* service.published({ controlDir: control });
+      return { first, second, published };
     }).pipe(Effect.provide(layer));
     return {
       ...results,
@@ -206,6 +207,11 @@ describe("Enterprise draft PR publication", () => {
       assert.include(result.lease, "--force-with-lease=refs/heads/enterprise/pr-");
       assert.isFalse(result.locked);
       if (result.second._tag === "Success") assert.isTrue(result.second.success.reconciled);
+      // The settled PR is recorded locally so the cockpit can link it without calling GitHub.
+      assert.deepEqual(result.published, {
+        url: "https://github.com/example/repo/pull/7",
+        number: 7,
+      });
     }),
   );
   it.effect("never repeats an ambiguous create when GitHub has not returned a PR", () =>

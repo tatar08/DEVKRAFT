@@ -4,6 +4,8 @@ import {
   EnterpriseApprovalStatus,
   EnterpriseCheckMergeInput,
   EnterpriseGetApprovalInput,
+  EnterpriseListWorkOrdersInput,
+  EnterpriseWorkOrderList,
   EnterpriseMergeCheckError,
   EnterpriseMergeTaskInput,
   EnterpriseMergeTaskResult,
@@ -1996,6 +1998,11 @@ const WsEnterpriseMergeTaskRpc = Rpc.make(ENTERPRISE_WS_METHODS.mergeTask, {
   success: EnterpriseMergeTaskResult,
   error: EnterpriseApprovalError,
 });
+const WsEnterpriseListWorkOrdersRpc = Rpc.make(ENTERPRISE_WS_METHODS.listWorkOrders, {
+  payload: EnterpriseListWorkOrdersInput,
+  success: EnterpriseWorkOrderList,
+  error: EnterpriseRoleError,
+});
 const WsEnterpriseReleaseWorkspaceRpc = Rpc.make(ENTERPRISE_WS_METHODS.releaseWorkspace, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: Schema.Void,
@@ -2026,6 +2033,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsEnterpriseGetApprovalRpc,
   WsEnterpriseRecordApprovalRpc,
   WsEnterpriseMergeTaskRpc,
+  WsEnterpriseListWorkOrdersRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,

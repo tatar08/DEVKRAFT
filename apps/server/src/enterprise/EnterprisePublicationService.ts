@@ -43,6 +43,8 @@ const Receipt = Schema.Struct({
   baseBranch: Schema.String,
   headBranch: Schema.String,
   commitSha: Schema.String,
+  /** Recorded once a matching PR is created or reconciled; lets the cockpit show and link it. */
+  pullRequest: Schema.optionalKey(Schema.Struct({ url: Schema.String, number: Schema.Number })),
 });
 const decodeReceipt = Schema.decodeUnknownEffect(Schema.fromJsonString(Receipt));
 const encodeReceipt = Schema.encodeEffect(Schema.fromJsonString(Receipt));
@@ -65,6 +67,13 @@ export class EnterprisePublicationService extends Context.Service<
     readonly publish: (
       input: EnterprisePublishPullRequestInput,
     ) => Effect.Effect<EnterprisePublishedPullRequest, EnterprisePublicationError>;
+    /**
+     * The PR this task's last publication settled on, read from the local receipt only (no GitHub
+     * call). `undefined` when nothing was published or the outcome is still unreconciled.
+     */
+    readonly published: (input: {
+      readonly controlDir: string;
+    }) => Effect.Effect<{ readonly url: string; readonly number: number } | undefined>;
   }
 >()("t3/enterprise/EnterprisePublicationService") {}
 
@@ -212,8 +221,19 @@ const make = Effect.gen(function* () {
               reconciled: true,
             });
           });
+          const settle = (result: EnterprisePublishedPullRequest) =>
+            Effect.gen(function* () {
+              yield* writeFileStringAtomically({
+                filePath: receiptPath,
+                contents: yield* encodeReceipt({
+                  ...receipt,
+                  pullRequest: { url: result.url, number: result.number },
+                }),
+              });
+              return result;
+            });
           const found = yield* reconcile();
-          if (found !== undefined) return found;
+          if (found !== undefined) return yield* settle(found);
           if (previous !== undefined)
             return yield* new EnterprisePublicationError({ reason: "publication_unknown" });
           // Only the verified checkpoint can be uploaded, to a new deterministic branch.
@@ -261,27 +281,36 @@ const make = Effect.gen(function* () {
                 bodyPath,
               ]);
               const created = yield* reconcile();
-              if (created !== undefined) return { ...created, reconciled: false };
+              if (created !== undefined) return yield* settle({ ...created, reconciled: false });
               // GitHub search can lag behind a successful create; trust only the exact URL gh printed.
               const prefix = `https://github.com/${input.repository}/pull/`;
               const printed = create.stdout.trim();
               const number = printed.startsWith(prefix) ? printed.slice(prefix.length) : "";
               if (!/^[1-9]\d*$/.test(number))
                 return yield* new EnterprisePublicationError({ reason: "publication_unknown" });
-              return yield* decodeResult({
-                url: printed,
-                number: Number(number),
-                commitSha,
-                headBranch,
-                reconciled: false,
-              });
+              return yield* settle(
+                yield* decodeResult({
+                  url: printed,
+                  number: Number(number),
+                  commitSha,
+                  headBranch,
+                  reconciled: false,
+                }),
+              );
             }),
           );
         }),
       () => fs.remove(lock, { recursive: true }).pipe(Effect.orDie),
     );
   });
+  const published = (input: { readonly controlDir: string }) =>
+    Effect.gen(function* () {
+      const file = path.join(input.controlDir, "publication.json");
+      if (!(yield* fs.exists(file)) || (yield* fs.realPath(file)) !== file) return undefined;
+      return (yield* decodeReceipt(yield* fs.readFileString(file))).pullRequest;
+    }).pipe(Effect.orElseSucceed(() => undefined));
   return EnterprisePublicationService.of({
+    published,
     publish: (input) =>
       publish(input).pipe(
         Effect.provideService(Crypto.Crypto, crypto),

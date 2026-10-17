@@ -1,6 +1,7 @@
 import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
 import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
 import * as EnterpriseMergeCheck from "./enterprise/EnterpriseMergeCheck.ts";
+import * as EnterpriseWorkOrders from "./enterprise/EnterpriseWorkOrders.ts";
 import * as EnterpriseApprovals from "./enterprise/EnterpriseApprovalService.ts";
 import {
   ENTERPRISE_WS_METHODS,
@@ -559,6 +560,8 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
 // Separate automation handlers keep the RPC handler type inference bounded.
 const CoreWsRpcGroup = ServerWsRpcGroup.omit(
+  ENTERPRISE_WS_METHODS.listWorkOrders,
+  ENTERPRISE_WS_METHODS.checkMerge,
   ENTERPRISE_WS_METHODS.getApproval,
   ENTERPRISE_WS_METHODS.recordApproval,
   ENTERPRISE_WS_METHODS.mergeTask,
@@ -1249,7 +1252,6 @@ const layerCoreWsRpc = (
         }
       };
       const enterprisePublication = yield* EnterprisePublication.EnterprisePublicationService;
-      const enterpriseMergeCheck = yield* EnterpriseMergeCheck.EnterpriseMergeCheck;
       const enterpriseTenant = withEnterpriseTenant(yield* EnterpriseTenancy);
       const roleTenantRejected = () => new EnterpriseRoleError({ reason: "tenant_not_allowed" });
       const enterpriseWorkflows = yield* EnterpriseWorkflows.EnterpriseWorkflowService;
@@ -2003,12 +2005,6 @@ const layerCoreWsRpc = (
           enterpriseTenant(input, roleTenantRejected, enterpriseRoles.collectHandoff(input)),
         [ENTERPRISE_WS_METHODS.releaseWorkspace]: (input) =>
           enterpriseTenant(input, roleTenantRejected, enterpriseRoles.releaseWorkspace(input)),
-        [ENTERPRISE_WS_METHODS.checkMerge]: (input) =>
-          enterpriseTenant(
-            input,
-            () => new EnterpriseMergeCheckError({ reason: "tenant_not_allowed" }),
-            enterpriseMergeCheck.check(input),
-          ),
         [ENTERPRISE_WS_METHODS.launchRole]: (input) =>
           enterpriseTenant(
             input,
@@ -3236,6 +3232,27 @@ const layerWsRpc = (
             input,
             () => new EnterpriseRoleError({ reason: "tenant_not_allowed" }),
             service.start(input, currentSession.sessionId),
+          );
+      }),
+    ),
+    // Tenants are filtered inside the read model: the payload carries no task to guard on.
+    ServerWsRpcGroup.toLayerHandler(
+      ENTERPRISE_WS_METHODS.listWorkOrders,
+      Effect.gen(function* () {
+        const workOrders = yield* EnterpriseWorkOrders.EnterpriseWorkOrders;
+        return () => workOrders.list;
+      }),
+    ),
+    ServerWsRpcGroup.toLayerHandler(
+      ENTERPRISE_WS_METHODS.checkMerge,
+      Effect.gen(function* () {
+        const tenant = withEnterpriseTenant(yield* EnterpriseTenancy);
+        const mergeCheck = yield* EnterpriseMergeCheck.EnterpriseMergeCheck;
+        return (input) =>
+          tenant(
+            input,
+            () => new EnterpriseMergeCheckError({ reason: "tenant_not_allowed" }),
+            mergeCheck.check(input),
           );
       }),
     ),

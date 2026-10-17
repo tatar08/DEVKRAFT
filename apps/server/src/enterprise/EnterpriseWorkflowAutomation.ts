@@ -30,6 +30,7 @@ import {
 import { enterpriseSecretKinds } from "./EnterpriseSecretPolicy.ts";
 import { EnterpriseTenancy } from "./EnterpriseTenancy.ts";
 import { isEnterpriseSessionAuthorized } from "./EnterpriseSessionAuthorization.ts";
+import { isEnterpriseRoleThreadId } from "./EnterpriseRun.ts";
 
 const decodeInput = Schema.decodeUnknownEffect(EnterpriseAdvanceWorkflowInput);
 const decodeScope = Schema.decodeUnknownEffect(EnterpriseReleaseWorkspaceInput);
@@ -38,6 +39,8 @@ const decodeRecord = Schema.decodeUnknownEffect(
 );
 const encodeRecord = Schema.encodeEffect(Schema.fromJsonString(EnterpriseWorkflowAutomationRecord));
 const isRoleError = Schema.is(EnterpriseRoleError);
+const isArchitectThreadId = (threadId: string) =>
+  isEnterpriseRoleThreadId(threadId) && /^enterprise:[a-f0-9]{64}:architect$/.test(threadId);
 const status = (
   record: EnterpriseWorkflowAutomationRecord | undefined,
 ): EnterpriseWorkflowAutomationStatus => ({
@@ -76,6 +79,17 @@ export class EnterpriseWorkflowAutomation extends Context.Service<
     ) => Effect.Effect<EnterpriseWorkflowAutomationStatus, EnterpriseRoleError>;
     /** One scheduler tick: advances registered workflows whose V2 event sequences changed. */
     readonly sweep: Effect.Effect<void, EnterpriseRoleError>;
+    /**
+     * Valid registrations discoverable from active Architect threads, with their thread. Records
+     * that fail identity, path or size checks are skipped, exactly as the scheduler skips them.
+     */
+    readonly registrations: Effect.Effect<
+      ReadonlyArray<{
+        readonly record: EnterpriseWorkflowAutomationRecord;
+        readonly architect: OrchestrationV2ThreadShell;
+      }>,
+      EnterpriseRoleError
+    >;
   }
 >()("t3/enterprise/EnterpriseWorkflowAutomation") {}
 
@@ -239,11 +253,21 @@ const make = Effect.gen(function* () {
       return yield* new EnterpriseRoleError({ reason: "request_mismatch" });
     return yield* workspace.readAutomation(params(record.input));
   });
+  const registrations = Effect.fn("EnterpriseWorkflowAutomation.registrations")(function* () {
+    const shell = yield* threads.getShellSnapshot({ location: "active" });
+    const found: Array<{
+      record: EnterpriseWorkflowAutomationRecord;
+      architect: OrchestrationV2ThreadShell;
+    }> = [];
+    for (const thread of shell.threads.filter((t) => isArchitectThreadId(t.id))) {
+      const record = yield* candidate(thread).pipe(Effect.orElseSucceed(() => undefined));
+      if (record !== undefined) found.push({ record, architect: thread });
+    }
+    return found;
+  });
   const sweep = Effect.fn("EnterpriseWorkflowAutomation.sweep")(function* () {
     const shell = yield* threads.getShellSnapshot({ location: "active" });
-    const candidates = shell.threads.filter((thread) =>
-      /^enterprise:[a-f0-9]{64}:architect$/.test(thread.id),
-    );
+    const candidates = shell.threads.filter((thread) => isArchitectThreadId(thread.id));
     const keys = new Set(candidates.map((thread) => thread.id.split(":")[1]!));
     for (const key of seen.keys()) if (!keys.has(key)) seen.delete(key);
     for (const thread of candidates) {
@@ -350,6 +374,10 @@ const make = Effect.gen(function* () {
         Effect.map(status),
         Effect.mapError(wrap),
       ),
+    registrations: registrations().pipe(
+      Effect.provideService(Crypto.Crypto, crypto),
+      Effect.mapError(wrap),
+    ),
     sweep: sweep().pipe(
       Effect.provideService(Crypto.Crypto, crypto),
       permit.withPermits(1),

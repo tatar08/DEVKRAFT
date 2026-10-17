@@ -10,9 +10,9 @@ import {
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
 import {
-  ENTERPRISE_WS_METHOD_LIST,
-  type EnterpriseWsMethod,
-  isEnterpriseWsMethod,
+  ENTERPRISE_GUARDED_WS_METHOD_LIST,
+  type EnterpriseGuardedWsMethod,
+  isEnterpriseGuardedWsMethod,
 } from "./enterprise.ts";
 
 /**
@@ -25,8 +25,8 @@ export const ENTERPRISE_RPC_SCOPES = [
   AuthSourceControlWriteScope,
 ] as const;
 const ENTERPRISE_GUARDED_RPC_SCOPES = Object.fromEntries(
-  ENTERPRISE_WS_METHOD_LIST.map((method) => [method, AuthOrchestrationOperateScope]),
-) as Record<EnterpriseWsMethod, typeof AuthOrchestrationOperateScope>;
+  ENTERPRISE_GUARDED_WS_METHOD_LIST.map((method) => [method, AuthOrchestrationOperateScope]),
+) as Record<EnterpriseGuardedWsMethod, typeof AuthOrchestrationOperateScope>;
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
@@ -76,7 +76,7 @@ export function clientRpcRequiredScopes(
   method: string,
   input: unknown,
 ): readonly AuthEnvironmentScope[] {
-  if (isEnterpriseWsMethod(method)) return ENTERPRISE_RPC_SCOPES;
+  if (isEnterpriseGuardedWsMethod(method)) return ENTERPRISE_RPC_SCOPES;
   if (method === WS_METHODS.gitPreparePullRequestThread && input !== undefined) {
     const payload = decodePrepareThread(input);
     if (payload.mode === "worktree" && payload.threadId !== undefined)

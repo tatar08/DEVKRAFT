@@ -7,6 +7,7 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as Git from "../vcs/GitVcsDriver.ts";
 import * as Approvals from "./EnterpriseApprovalService.ts";
 import * as Issues from "./EnterpriseIssueService.ts";
+import * as WorkOrders from "./EnterpriseWorkOrders.ts";
 import * as MergeCheck from "./EnterpriseMergeCheck.ts";
 import * as IssueWorkflows from "./EnterpriseIssueWorkflowService.ts";
 import * as Pricing from "./EnterprisePricing.ts";
@@ -87,6 +88,16 @@ export const layer = <E1, R1, E2, R2>(deps: {
     layerWorkflowsProvided,
     layerRolesProvided,
     MergeCheck.layer.pipe(Layer.provide(layerRolesProvided)),
+    WorkOrders.layer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          layerAutomationProvided,
+          layerPublicationProvided,
+          deps.threadManagement,
+          Workspace.layer,
+        ),
+      ),
+    ),
     Approvals.layer.pipe(
       Layer.provide(Layer.mergeAll(layerWorkflowsProvided, Workspace.layer, AuthSessions.layer)),
     ),

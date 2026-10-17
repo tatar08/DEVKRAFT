@@ -125,10 +125,18 @@ describe("Enterprise publication held-lock crash drill", () => {
           } else {
             assert.include(result, '"reason":"publication_unknown"');
           }
-          assert.equal(
+          // The intent fields never change; a reconciled retry only adds the settled PR.
+          const current = JSON.parse(
             await NodeFSP.readFile(NodePath.join(root, "publication.json"), "utf8"),
-            receipt,
-          );
+          ) as Record<string, unknown>;
+          const { pullRequest, ...intent } = current;
+          assert.deepEqual(intent, JSON.parse(receipt));
+          if (recovery === "found")
+            assert.deepEqual(pullRequest, {
+              url: "https://github.com/example/repo/pull/7",
+              number: 7,
+            });
+          else assert.isUndefined(pullRequest);
         }
         assert.equal(
           await NodeFSP.readFile(NodePath.join(root, "gh.log"), "utf8"),

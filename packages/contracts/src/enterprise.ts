@@ -739,6 +739,48 @@ export class EnterpriseApprovalError extends Schema.TaggedError<EnterpriseApprov
   }
 }
 
+/** Kanban columns for the Phase 5 cockpit, derived server-side from V2 and control records. */
+export const EnterpriseWorkOrderStage = Schema.Literals([
+  "queued",
+  "running",
+  "verifying",
+  "awaiting_approval",
+  "pr_opened",
+  "blocked",
+]);
+export type EnterpriseWorkOrderStage = typeof EnterpriseWorkOrderStage.Type;
+
+/**
+ * A registered workflow as the cockpit shows it. `approvals` summarizes *stored* decisions only;
+ * clients must call `enterprise.getApproval` for the revalidated decision before acting on it.
+ */
+export const EnterpriseWorkOrder = Schema.Struct({
+  key: Schema.String.check(Schema.isPattern(/^[a-f0-9]{64}$/)),
+  title: Schema.String.check(Schema.isMaxLength(512)),
+  issueUrl: Schema.NullOr(Schema.String.check(Schema.isMaxLength(2048))),
+  stage: EnterpriseWorkOrderStage,
+  activeRole: Schema.NullOr(
+    Schema.Struct({
+      role: EnterpriseRole,
+      revision: Schema.Literals([0, 1, 2]),
+      threadId: ThreadId,
+    }),
+  ),
+  stopReason: EnterpriseWorkflowAutomationRecord.fields.stopReason,
+  automationEnabled: Schema.Boolean,
+  approvals: Schema.Struct({ approve: NonNegativeInt, reject: NonNegativeInt }),
+  pullRequest: Schema.NullOr(Schema.Struct({ url: Schema.String, number: PositiveInt })),
+  updatedAt: Schema.NullOr(Schema.String),
+  workflow: EnterpriseAdvanceWorkflowInput,
+});
+export type EnterpriseWorkOrder = typeof EnterpriseWorkOrder.Type;
+export const EnterpriseListWorkOrdersInput = Schema.Struct({});
+export type EnterpriseListWorkOrdersInput = typeof EnterpriseListWorkOrdersInput.Type;
+export const EnterpriseWorkOrderList = Schema.Struct({
+  workOrders: Schema.Array(EnterpriseWorkOrder),
+});
+export type EnterpriseWorkOrderList = typeof EnterpriseWorkOrderList.Type;
+
 /**
  * Every Enterprise RPC method, in one place so the RPC group, authorization and instrumentation
  * cannot drift apart.
@@ -762,9 +804,27 @@ export const ENTERPRISE_WS_METHODS = {
   getApproval: "enterprise.getApproval",
   recordApproval: "enterprise.recordApproval",
   mergeTask: "enterprise.mergeTask",
+  listWorkOrders: "enterprise.listWorkOrders",
 } as const;
 export type EnterpriseWsMethod = (typeof ENTERPRISE_WS_METHODS)[keyof typeof ENTERPRISE_WS_METHODS];
 export const ENTERPRISE_WS_METHOD_LIST: ReadonlyArray<EnterpriseWsMethod> =
   Object.values(ENTERPRISE_WS_METHODS);
 export const isEnterpriseWsMethod = (method: string): method is EnterpriseWsMethod =>
   (ENTERPRISE_WS_METHOD_LIST as ReadonlyArray<string>).includes(method);
+
+/**
+ * Enterprise RPCs that only read persisted state: no dispatch, no gate, no writes. They need only
+ * orchestration read scope, so a viewer (for example on mobile) can see the cockpit board.
+ */
+export const ENTERPRISE_READ_ONLY_WS_METHODS = [ENTERPRISE_WS_METHODS.listWorkOrders] as const;
+export type EnterpriseGuardedWsMethod = Exclude<
+  EnterpriseWsMethod,
+  (typeof ENTERPRISE_READ_ONLY_WS_METHODS)[number]
+>;
+/** Every other Enterprise RPC can start provider work, write worktrees or push: three scopes. */
+export const ENTERPRISE_GUARDED_WS_METHOD_LIST = ENTERPRISE_WS_METHOD_LIST.filter(
+  (method): method is EnterpriseGuardedWsMethod =>
+    !(ENTERPRISE_READ_ONLY_WS_METHODS as ReadonlyArray<string>).includes(method),
+);
+export const isEnterpriseGuardedWsMethod = (method: string): method is EnterpriseGuardedWsMethod =>
+  (ENTERPRISE_GUARDED_WS_METHOD_LIST as ReadonlyArray<string>).includes(method);

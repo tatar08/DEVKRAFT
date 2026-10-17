@@ -1,4 +1,5 @@
 import {
+  ENTERPRISE_GUARDED_WS_METHOD_LIST,
   ENTERPRISE_WS_METHOD_LIST,
   AuthEnvironmentMaintainScope,
   AuthDiagnosticsReadScope,
@@ -457,7 +458,7 @@ it.effect("denies manual cleanup before the handler without settings permission"
 
 // Every Enterprise RPC can start provider work, write task worktrees or push, so the list is
 // iterated rather than restated: a newly added Enterprise method is covered automatically.
-it.each(ENTERPRISE_WS_METHOD_LIST)("requires all three scopes for %s", (method) => {
+it.each(ENTERPRISE_GUARDED_WS_METHOD_LIST)("requires all three scopes for %s", (method) => {
   expect(clientRpcRequiredScopes(method, {})).toEqual([
     AuthOrchestrationOperateScope,
     AuthFilesystemWriteScope,
@@ -465,7 +466,11 @@ it.each(ENTERPRISE_WS_METHOD_LIST)("requires all three scopes for %s", (method) 
   ]);
 });
 
-it("covers the read-only merge check like every other Enterprise RPC", () => {
-  expect(ENTERPRISE_WS_METHOD_LIST).toContain("enterprise.checkMerge");
-  expect(ENTERPRISE_WS_METHOD_LIST).toHaveLength(18);
+it("guards every Enterprise RPC except the read-only cockpit list", () => {
+  expect(ENTERPRISE_GUARDED_WS_METHOD_LIST).toContain("enterprise.checkMerge");
+  expect(ENTERPRISE_GUARDED_WS_METHOD_LIST).toContain("enterprise.mergeTask");
+  expect(ENTERPRISE_GUARDED_WS_METHOD_LIST).not.toContain("enterprise.listWorkOrders");
+  expect(ENTERPRISE_GUARDED_WS_METHOD_LIST).toHaveLength(ENTERPRISE_WS_METHOD_LIST.length - 1);
+  expect(clientRpcRequiredScopes("enterprise.listWorkOrders", {})).toEqual([]);
+  expect(RPC_REQUIRED_SCOPES["enterprise.listWorkOrders"]).toBe(AuthOrchestrationReadScope);
 });
