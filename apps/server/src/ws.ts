@@ -1,7 +1,9 @@
 import * as EnterpriseIssueWorkflows from "./enterprise/EnterpriseIssueWorkflowService.ts";
 import * as EnterprisePublication from "./enterprise/EnterprisePublicationService.ts";
+import * as EnterpriseMergeCheck from "./enterprise/EnterpriseMergeCheck.ts";
 import {
   ENTERPRISE_WS_METHODS,
+  EnterpriseMergeCheckError,
   EnterprisePublicationError,
   EnterpriseRoleError,
 } from "@t3tools/contracts";
@@ -1242,6 +1244,7 @@ const layerCoreWsRpc = (
         }
       };
       const enterprisePublication = yield* EnterprisePublication.EnterprisePublicationService;
+      const enterpriseMergeCheck = yield* EnterpriseMergeCheck.EnterpriseMergeCheck;
       const enterpriseTenant = withEnterpriseTenant(yield* EnterpriseTenancy);
       const roleTenantRejected = () => new EnterpriseRoleError({ reason: "tenant_not_allowed" });
       const enterpriseWorkflows = yield* EnterpriseWorkflows.EnterpriseWorkflowService;
@@ -1995,6 +1998,12 @@ const layerCoreWsRpc = (
           enterpriseTenant(input, roleTenantRejected, enterpriseRoles.collectHandoff(input)),
         [ENTERPRISE_WS_METHODS.releaseWorkspace]: (input) =>
           enterpriseTenant(input, roleTenantRejected, enterpriseRoles.releaseWorkspace(input)),
+        [ENTERPRISE_WS_METHODS.checkMerge]: (input) =>
+          enterpriseTenant(
+            input,
+            () => new EnterpriseMergeCheckError({ reason: "tenant_not_allowed" }),
+            enterpriseMergeCheck.check(input),
+          ),
         [ENTERPRISE_WS_METHODS.launchRole]: (input) =>
           enterpriseTenant(
             input,

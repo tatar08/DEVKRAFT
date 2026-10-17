@@ -597,6 +597,48 @@ export const EnterpriseStartIssueWorkflowInput = Schema.Struct({
 export type EnterpriseStartIssueWorkflowInput = typeof EnterpriseStartIssueWorkflowInput.Type;
 
 /**
+ * Read-only merge feasibility for the completed Coder checkpoint of one revision. The server
+ * resolves both commits itself (task from the V2 handoff, target from a local branch), so a client
+ * cannot submit an arbitrary commit, and nothing is merged, approved or pushed.
+ */
+export const EnterpriseCheckMergeInput = Schema.Struct({
+  ...EnterpriseReleaseWorkspaceInput.fields,
+  revision: Schema.optionalKey(EnterpriseRevision),
+  targetBranch: TrimmedNonEmptyString.check(
+    Schema.isMaxLength(200),
+    Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/),
+  ),
+});
+export type EnterpriseCheckMergeInput = typeof EnterpriseCheckMergeInput.Type;
+export const EnterpriseMergeCheckResult = Schema.Struct({
+  targetBranch: TrimmedNonEmptyString,
+  targetCommit: CommitSha,
+  taskCommit: CommitSha,
+  treeSha: CommitSha,
+});
+export type EnterpriseMergeCheckResult = typeof EnterpriseMergeCheckResult.Type;
+export class EnterpriseMergeCheckError extends Schema.TaggedError<EnterpriseMergeCheckError>()(
+  "EnterpriseMergeCheckError",
+  {
+    reason: Schema.Literals([
+      "invalid_input",
+      "handoff_unavailable",
+      "target_not_found",
+      "conflict",
+      "busy",
+      "merge_driver",
+      "tenant_not_allowed",
+      "check_failed",
+    ]),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return `Enterprise merge check rejected: ${this.reason}.`;
+  }
+}
+
+/**
  * Every Enterprise RPC method, in one place so the RPC group, authorization and instrumentation
  * cannot drift apart.
  */
@@ -615,6 +657,7 @@ export const ENTERPRISE_WS_METHODS = {
   collectHandoff: "enterprise.collectHandoff",
   launchRole: "enterprise.launchRole",
   releaseWorkspace: "enterprise.releaseWorkspace",
+  checkMerge: "enterprise.checkMerge",
 } as const;
 export type EnterpriseWsMethod = (typeof ENTERPRISE_WS_METHODS)[keyof typeof ENTERPRISE_WS_METHODS];
 export const ENTERPRISE_WS_METHOD_LIST: ReadonlyArray<EnterpriseWsMethod> =

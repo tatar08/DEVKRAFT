@@ -1,4 +1,10 @@
-import { ENTERPRISE_WS_METHODS, EnterpriseStartIssueWorkflowInput } from "./enterprise.ts";
+import {
+  ENTERPRISE_WS_METHODS,
+  EnterpriseCheckMergeInput,
+  EnterpriseMergeCheckError,
+  EnterpriseMergeCheckResult,
+  EnterpriseStartIssueWorkflowInput,
+} from "./enterprise.ts";
 import {
   EnterprisePublishPullRequestInput,
   EnterprisePublishedPullRequest,
@@ -1964,6 +1970,11 @@ const WsEnterpriseCollectHandoffRpc = Rpc.make(ENTERPRISE_WS_METHODS.collectHand
   success: AgentHandoff,
   error: EnterpriseRoleError,
 });
+const WsEnterpriseCheckMergeRpc = Rpc.make(ENTERPRISE_WS_METHODS.checkMerge, {
+  payload: EnterpriseCheckMergeInput,
+  success: EnterpriseMergeCheckResult,
+  error: EnterpriseMergeCheckError,
+});
 const WsEnterpriseReleaseWorkspaceRpc = Rpc.make(ENTERPRISE_WS_METHODS.releaseWorkspace, {
   payload: EnterpriseReleaseWorkspaceInput,
   success: Schema.Void,
@@ -1990,6 +2001,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsEnterpriseCollectHandoffRpc,
   WsEnterpriseLaunchRoleRpc,
   WsEnterpriseReleaseWorkspaceRpc,
+  WsEnterpriseCheckMergeRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,

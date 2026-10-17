@@ -1,4 +1,5 @@
 import {
+  ENTERPRISE_WS_METHOD_LIST,
   AuthEnvironmentMaintainScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
@@ -454,68 +455,17 @@ it.effect("denies manual cleanup before the handler without settings permission"
   }).pipe(Effect.scoped),
 );
 
-it("requires all execution/filesystem/source-control scopes for enterprise launches", () => {
-  expect(clientRpcRequiredScopes("enterprise.startIssueWorkflow", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.publishPullRequest", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.collectRoleArtifact", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.buildPullRequestDraft", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.advanceWorkflow", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.gateAndContinue", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.gateRole", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.collectHandoff", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.releaseWorkspace", {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
-  expect(clientRpcRequiredScopes("enterprise.launchRole", {})).toEqual([
+// Every Enterprise RPC can start provider work, write task worktrees or push, so the list is
+// iterated rather than restated: a newly added Enterprise method is covered automatically.
+it.each(ENTERPRISE_WS_METHOD_LIST)("requires all three scopes for %s", (method) => {
+  expect(clientRpcRequiredScopes(method, {})).toEqual([
     AuthOrchestrationOperateScope,
     AuthFilesystemWriteScope,
     AuthSourceControlWriteScope,
   ]);
 });
 
-it.each([
-  "enterprise.startWorkflow",
-  "enterprise.stopWorkflow",
-  "enterprise.cancelWorkflow",
-  "enterprise.getWorkflowAutomation",
-])("requires all three scopes for workflow automation %s", (method) => {
-  expect(clientRpcRequiredScopes(method, {})).toEqual([
-    AuthOrchestrationOperateScope,
-    AuthFilesystemWriteScope,
-    AuthSourceControlWriteScope,
-  ]);
+it("covers the read-only merge check like every other Enterprise RPC", () => {
+  expect(ENTERPRISE_WS_METHOD_LIST).toContain("enterprise.checkMerge");
+  expect(ENTERPRISE_WS_METHOD_LIST).toHaveLength(15);
 });
