@@ -126,6 +126,23 @@ Do **not** edit `EnterpriseRoleService.test.ts`.
 
 **Do:** delete an entry when a workflow stops (ready, blocked, error or cancelled) or is no longer registered. Add a focused test that the map does not keep stopped tasks. Behavior must not change otherwise.
 
+### Codex — C3: Phase 4 prompt-injection fixture suite (priority: high)
+
+**Files you may edit:** new test files under `apps/server/src/enterprise/` only, for example `EnterprisePromptInjection.test.ts`. Do **not** edit production code or existing tests.
+
+**Goal:** this is the Blueprint Phase 4 item "Prompt Injection Defense". It needs a corpus of adversarial fixtures proving that untrusted issue, repository and model text cannot raise privileges.
+
+**Do:** write behavioral tests (no snapshots of implementation details) for each boundary:
+
+1. **Issue import** (`EnterpriseIssueService`, fake `gh`): an issue body that impersonates a system or operator, claims tool grants or an approval, or contains secrets is stored as `trust: "untrusted_content"`, with secrets redacted and no change to the operator's TaskSpec.
+2. **Prompt rendering** (`renderEnterpriseRolePrompt` in `EnterpriseRoleContext.ts`): hostile issue and predecessor text, including quotes, `}`, newlines and fake "instructions" headers, appears only inside the JSON-encoded untrusted fields. The fixed instruction prefix is unchanged and the JSON body still parses to the same fields.
+3. **Role output** (`decodeEnterpriseRoleOutput`): model output that adds tool grants, spoofs an approval or QA verdict, uses path traversal or control-metadata paths (`.git`, `.codex`, `.agents`), adds extra fields, or leaks secrets (including JSON unicode escapes) is rejected.
+4. **Runtime policy** (`EnterpriseRuntimePolicy`): a role thread asking for `full-access` or another provider still resolves to the named deny-by-default profile, or fails closed.
+
+**Done when:** the new tests pass, the existing tests are unchanged and pass, and typecheck and lint are clean.
+
+**If a defense gap is found:** do not fix it. Write a test that fails for that case, mark it with `it.fails` and the comment `// SECURITY GAP:`, and list the gap in your report.
+
 ### Decisions made jointly by Claude and Codex (17 October 2026, delegated by the user)
 
 | Topic                                | Decision               | Reason                                                                                                                                                                                                                                                                                                                                                |
